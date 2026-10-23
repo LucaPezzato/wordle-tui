@@ -587,10 +587,35 @@ class WordleApp(App[None]):
             id="hero-card",
         )
 
+        # Build initial board tiles
+        board_rows = []
+        for r in range(self.game.max_attempts):
+            tiles = [TileWidget("", id=f"tile-{r}-{c}", classes="tile") for c in range(self.word_length)]
+            board_rows.append(Horizontal(*tiles, classes="wordle-row", id=f"row-{r}"))
+        board = Container(*board_rows, id="board-container")
+
+        # Build fixed keyboard layout
+        r1 = ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"]
+        r2 = ["A", "S", "D", "F", "G", "H", "J", "K", "L"]
+        r3 = ["ENTER", "Z", "X", "C", "V", "B", "N", "M", "BACKSPACE"]
+
+        row1_keys = [KeyWidget(k, k) for k in r1]
+        row2_keys = [KeyWidget(k, k) for k in r2]
+        row3_keys = [
+            KeyWidget(k, "INVIA" if k == "ENTER" else ("⌫" if k == "BACKSPACE" else k), is_wide=(k in ("ENTER", "BACKSPACE")))
+            for k in r3
+        ]
+        keyboard = Container(
+            Horizontal(*row1_keys, classes="kb-row"),
+            Horizontal(*row2_keys, classes="kb-row"),
+            Horizontal(*row3_keys, classes="kb-row"),
+            id="keyboard-container",
+        )
+
         # Workspace with grid and virtual keyboard
         yield ScrollableContainer(
-            Container(id="board-container"),
-            Container(id="keyboard-container"),
+            board,
+            keyboard,
             id="workspace",
         )
 
@@ -605,8 +630,8 @@ class WordleApp(App[None]):
         )
 
     def on_mount(self) -> None:
-        self._rebuild_board()
-        self._rebuild_keyboard()
+        self._refresh_board_tiles()
+        self._refresh_keyboard_colors()
         self._update_headers()
 
     def _update_headers(self) -> None:
@@ -641,19 +666,6 @@ class WordleApp(App[None]):
             f"Record Serie: [bold {ACCENT_ORANGE}]{self.stats_manager.max_streak}[/]  •  Tasti: [bold {FG_MAIN}4-8[/] per cambiare lunghezza"
         )
 
-    def _rebuild_board(self) -> None:
-        board = self.query_one("#board-container", Container)
-        board.remove_children()
-
-        for row_idx in range(self.game.max_attempts):
-            row_container = Horizontal(classes="wordle-row", id=f"row-{row_idx}")
-            for col_idx in range(self.word_length):
-                tile = TileWidget("", id=f"tile-{row_idx}-{col_idx}", classes="tile")
-                row_container.mount(tile)
-            board.mount(row_container)
-
-        self._refresh_board_tiles()
-
     def _refresh_board_tiles(self) -> None:
         # Existing submitted guesses
         for row_idx, (guess, evals) in enumerate(zip(self.game.guesses, self.game.evaluations)):
@@ -687,32 +699,6 @@ class WordleApp(App[None]):
                 tile = self.query_one(f"#tile-{r}-{c}", TileWidget)
                 tile.update("")
                 tile.remove_class("tile-typing", "tile-correct", "tile-present", "tile-absent")
-
-    def _rebuild_keyboard(self) -> None:
-        kb = self.query_one("#keyboard-container", Container)
-        kb.remove_children()
-
-        r1 = ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"]
-        r2 = ["A", "S", "D", "F", "G", "H", "J", "K", "L"]
-        r3 = ["ENTER", "Z", "X", "C", "V", "B", "N", "M", "BACKSPACE"]
-
-        row1_c = Horizontal(classes="kb-row")
-        for k in r1:
-            row1_c.mount(KeyWidget(k, k))
-        kb.mount(row1_c)
-
-        row2_c = Horizontal(classes="kb-row")
-        for k in r2:
-            row2_c.mount(KeyWidget(k, k))
-        kb.mount(row2_c)
-
-        row3_c = Horizontal(classes="kb-row")
-        for k in r3:
-            label = "INVIA" if k == "ENTER" else ("⌫" if k == "BACKSPACE" else k)
-            row3_c.mount(KeyWidget(k, label, is_wide=(k in ("ENTER", "BACKSPACE"))))
-        kb.mount(row3_c)
-
-        self._refresh_keyboard_colors()
 
     def _refresh_keyboard_colors(self) -> None:
         for char, state in self.game.keyboard_states.items():
@@ -775,7 +761,7 @@ class WordleApp(App[None]):
         if key.isdigit():
             val = int(key)
             if val in self.dict_manager.get_available_lengths():
-                self.change_word_length(val)
+                self.run_worker(self.change_word_length(val))
                 return
 
         if self.game.status != GameStatus.PLAYING:
@@ -829,19 +815,29 @@ class WordleApp(App[None]):
     def start_new_game(self) -> None:
         """Start a new game session with current length."""
         self.game = self._create_game(self.word_length)
-        self._rebuild_board()
-        self._rebuild_keyboard()
+        self._refresh_board_tiles()
+        self._refresh_keyboard_colors()
         self._update_headers()
         self.flash_status("Nuova partita avviata!")
 
-    def change_word_length(self, length: int) -> None:
-        """Change word length and start new game."""
+    async def change_word_length(self, length: int) -> None:
+        """Change word length and rebuild board."""
         if length == self.word_length and self.game.status == GameStatus.PLAYING:
             return
         self.word_length = length
         self.game = self._create_game(self.word_length)
-        self._rebuild_board()
-        self._rebuild_keyboard()
+
+        board = self.query_one("#board-container", Container)
+        await board.remove_children()
+
+        board_rows = []
+        for r in range(self.game.max_attempts):
+            tiles = [TileWidget("", id=f"tile-{r}-{c}", classes="tile") for c in range(self.word_length)]
+            board_rows.append(Horizontal(*tiles, classes="wordle-row", id=f"row-{r}"))
+        await board.mount(*board_rows)
+
+        self._refresh_board_tiles()
+        self._refresh_keyboard_colors()
         self._update_headers()
         self.flash_status(f"Lunghezza impostata a {length} lettere!")
 
@@ -849,7 +845,7 @@ class WordleApp(App[None]):
         """Open length selection modal."""
         def _on_select(length: Optional[int]) -> None:
             if length and length != self.word_length:
-                self.change_word_length(length)
+                self.run_worker(self.change_word_length(length))
 
         avail = [l for l in self.dict_manager.get_available_lengths() if l <= 8]
         self.push_screen(LengthModal(self.word_length, avail), _on_select)
