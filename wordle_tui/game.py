@@ -138,6 +138,12 @@ class WordleGame:
 
         return True, "Tentativo registrato."
 
+    def surrender(self) -> str:
+        """Surrender the game and reveal secret word."""
+        if self.status == GameStatus.PLAYING:
+            self.status = GameStatus.LOST
+        return self.target
+
     def get_share_grid(self) -> str:
         """Generate shareable emoji grid."""
         lines = [f"Wordle-TUI ({self.word_length}L) {self.attempt_count if self.status == GameStatus.WON else 'X'}/{self.max_attempts}"]

@@ -103,6 +103,13 @@ class TestWordleGameSession(unittest.TestCase):
         self.assertEqual(game.status, GameStatus.WON)
         self.assertIn("🟩", game.get_share_grid())
 
+    def test_surrender(self):
+        game = WordleGame("BOSCO")
+        self.assertEqual(game.status, GameStatus.PLAYING)
+        revealed = game.surrender()
+        self.assertEqual(revealed, "BOSCO")
+        self.assertEqual(game.status, GameStatus.LOST)
+
 
 if __name__ == "__main__":
     unittest.main()

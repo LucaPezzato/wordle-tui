@@ -396,12 +396,13 @@ class KeyWidget(Static):
 
 
 class GameOverModal(ModalScreen[None]):
-    """Modal displayed when game is won or lost."""
+    """Modal displayed when game is won, lost, or surrendered."""
 
-    def __init__(self, game: WordleGame, stats: WordleStats) -> None:
+    def __init__(self, game: WordleGame, stats: WordleStats, surrendered: bool = False) -> None:
         super().__init__()
         self.game = game
         self.stats = stats
+        self.surrendered = surrendered
         self.can_dismiss = False
 
     def on_mount(self) -> None:
@@ -413,13 +414,17 @@ class GameOverModal(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         won = self.game.status == GameStatus.WON
-        title = "🎉 VITTORIA ECCELLENTE!" if won else "💀 PARTITA TERMINATA"
-        title_color = ACCENT_GREEN if won else ALERT_RED
+        if self.surrendered:
+            title = "🏳️ TI SEI ARRESO"
+        elif won:
+            title = "🎉 VITTORIA ECCELLENTE!"
+        else:
+            title = "💀 PARTITA TERMINATA"
 
         yield Vertical(
             Label(title, classes="modal-title", id="go-title"),
             Label(
-                f"La parola segreta era: [bold {ACCENT_YELLOW}]{self.game.target}[/]",
+                f"La parola segreta era: [bold {ACCENT_GREEN if won else ACCENT_YELLOW}]{self.game.target}[/]",
                 classes="modal-subtitle",
             ),
             Label(
@@ -649,9 +654,9 @@ class PauseModal(ModalScreen[Optional[str]]):
             Grid(
                 Button("▶️ Riprendi [Esc]", id="btn-resume", classes="dialog-btn", variant="primary"),
                 Button("🔄 Nuova Partita [N]", id="btn-new", classes="dialog-btn"),
+                Button("🏳️ Arrenditi [A]", id="btn-surrender", classes="dialog-btn"),
                 Button("📏 Lunghezza [L]", id="btn-len", classes="dialog-btn"),
                 Button("📊 Statistiche [S]", id="btn-stats", classes="dialog-btn"),
-                Button("📖 Regole [H]", id="btn-help", classes="dialog-btn"),
                 Button("🚪 Esci [Q]", id="btn-quit", classes="dialog-btn"),
                 classes="pause-grid",
             ),
@@ -665,12 +670,12 @@ class PauseModal(ModalScreen[Optional[str]]):
             self.dismiss("resume")
         elif bid == "btn-new":
             self.dismiss("new")
+        elif bid == "btn-surrender":
+            self.dismiss("surrender")
         elif bid == "btn-len":
             self.dismiss("len")
         elif bid == "btn-stats":
             self.dismiss("stats")
-        elif bid == "btn-help":
-            self.dismiss("help")
         elif bid == "btn-quit":
             self.dismiss("quit")
 
@@ -680,6 +685,8 @@ class PauseModal(ModalScreen[Optional[str]]):
             self.dismiss("resume")
         elif key == "n":
             self.dismiss("new")
+        elif key == "a":
+            self.dismiss("surrender")
         elif key == "l":
             self.dismiss("len")
         elif key == "s":
@@ -766,7 +773,7 @@ class WordleApp(App[None]):
         # Footer Bar
         yield Horizontal(
             Static(
-                "[Enter] Invia  [⌫] Cancella  [4-8] Lunghezza  [Esc] Menu / Pausa  [?] Aiuto",
+                "[Enter] Invia  [⌫] Cancella  [4-8] Lunghezza  [Esc] Menu / Arrenditi  [?] Aiuto",
                 id="footer-hints",
             ),
             Static("", id="footer-status"),
@@ -883,6 +890,8 @@ class WordleApp(App[None]):
                 return
             if action == "new":
                 self.start_new_game()
+            elif action == "surrender":
+                self.action_surrender()
             elif action == "len":
                 self.action_choose_length()
             elif action.startswith("len-"):
@@ -897,6 +906,24 @@ class WordleApp(App[None]):
 
         self.push_screen(PauseModal(), _on_pause_result)
 
+    def action_surrender(self) -> None:
+        """Surrender current game, reveal secret word and record stats."""
+        if self.game.status != GameStatus.PLAYING:
+            return
+
+        target = self.game.surrender()
+        self.stats_manager.record_game(
+            self.word_length,
+            won=False,
+            attempts=self.game.max_attempts,
+            word=target,
+        )
+        self._refresh_board_tiles()
+        self._refresh_keyboard_colors()
+        self._update_headers()
+        self.flash_status(f"🏳️ Ti sei arreso! La parola era: {target}", duration=8.0)
+        self.push_screen(GameOverModal(self.game, self.stats_manager, surrendered=True))
+
     def on_key(self, event: events.Key) -> None:
         """Handle keyboard input."""
         key = event.key
@@ -907,6 +934,9 @@ class WordleApp(App[None]):
             return
         if key == "ctrl+n":
             self.start_new_game()
+            return
+        if key in ("ctrl+a", "ctrl+r"):
+            self.action_surrender()
             return
         if key == "ctrl+s":
             self.push_screen(StatsModal(self.stats_manager, self.word_length))
