@@ -32,17 +32,27 @@ Un moderno gioco **Wordle in lingua italiana** per il terminale, con interfaccia
 
 ## 🕹️ Comandi & Scorciatoie da Tastiera
 
+### Durante la Partita
 | Tasto | Azione |
 | :--- | :--- |
-| `A` - `Z` | Digita una lettera |
-| `Enter` | Invia il tentativo (con validazione dizionario) |
-| `Backspace` / `⌫` | Cancella l'ultima lettera |
-| `4`, `5`, `6`, `7`, `8` | Cambia istantaneamente la lunghezza delle parole e avvia una nuova partita |
-| `l` o `L` | Apri il dialog di selezione lunghezza |
-| `n` | Avvia una nuova partita |
-| `s` | Mostra il grafico delle statistiche e distribuzione tentativi |
-| `?` o `h` | Mostra la guida e le regole di gioco |
-| `q` | Esci dal gioco |
+| `A` - `Z` | Digita una lettera (nessun conflitto con le scorciatoie) |
+| `Enter` | Invia il tentativo (con validazione del vocabolario) |
+| `Backspace` / `⌫` | Cancella l'ultima lettera digitata |
+| `Ctrl+A` | Arrenditi istantaneamente e svela la parola segreta |
+| `Esc` | Apri il **Menu Opzioni / Pausa** |
+
+### Nei Menu e Finestre di Dialogo
+| Tasto | Azione |
+| :--- | :--- |
+| `↑` `↓` `←` `→` | Naviga tra i pulsanti |
+| `Tab` / `Shift+Tab` | Scorre i pulsanti in avanti / indietro |
+| `Enter` / `Spazio` | Attiva il pulsante selezionato (evidenziato in rosa Dracula) |
+| `N` | Nuova partita |
+| `A` | Arrenditi e rivela la parola |
+| `L` / `4` - `8` | Cambia lunghezza parola (4, 5, 6, 7 o 8 lettere) |
+| `S` | Statistiche e distribuzione dei tentativi |
+| `C` / `Y` | Copia griglia emoji negli appunti (`wl-copy`) |
+| `Q` / `Esc` | Chiudi dialog / Torna al gioco / Esci |
 
 ---
 
@@ -51,11 +61,13 @@ Un moderno gioco **Wordle in lingua italiana** per il terminale, con interfaccia
 ### Requisiti
 - Python `>= 3.10`
 - Terminale con supporto TrueColor (es. `kitty`, `alacritty`, `foot`)
+- `wl-clipboard` (opzionale, per copiare le emoji negli appunti su Wayland)
 
-### Installazione Locale (Editable)
+### Installazione da Repository
 
 ```bash
-cd /home/pez/repos/wordle-tui
+git clone https://github.com/LucaPezzato/wordle-tui.git
+cd wordle-tui
 pip install -e .
 ```
 
@@ -128,12 +140,23 @@ wordle-tui update-dict
 
 ---
 
-## 🖥️ Launcher Desktop
+## 🖥️ Desktop & Window Manager Integration
 
-Copia il file `.desktop` nella cartella delle applicazioni utente:
+### Desktop Entry
 
 ```bash
-cp /home/pez/repos/wordle-tui/wordle-tui.desktop ~/.local/share/applications/
+cp wordle-tui.desktop ~/.local/share/applications/
+```
+
+### Regola Finestra Fluttuante per Hyprland
+
+Se utilizzi **Hyprland**, puoi aggiungere al tuo file di configurazione (`hyprland.conf` o `hyprland.lua`) la seguente regola per aprire il gioco come popup centrato e fluttuante:
+
+```conf
+# hyprland.conf
+windowrulev2 = float, class:^(wordle-tui)$
+windowrulev2 = size 940 820, class:^(wordle-tui)$
+windowrulev2 = center, class:^(wordle-tui)$
 ```
 
 ---
