@@ -101,21 +101,20 @@ Screen {{
     height: 1fr;
     width: 100%;
     layout: vertical;
-    align: center top;
     overflow-y: auto;
     scrollbar-gutter: stable;
 }}
 
 #board-container {{
-    width: auto;
+    width: 100%;
     height: auto;
-    align: center middle;
+    align: center top;
     margin-bottom: 1;
 }}
 
 .wordle-row {{
     height: 3;
-    width: auto;
+    width: 100%;
     layout: horizontal;
     align: center middle;
     margin-bottom: 0;
@@ -157,10 +156,10 @@ Screen {{
 }}
 
 #keyboard-container {{
-    width: auto;
+    width: 100%;
     height: auto;
     layout: vertical;
-    align: center middle;
+    align: center top;
     margin-top: 1;
     margin-bottom: 0;
 }}
@@ -175,7 +174,7 @@ Screen {{
 
 .kb-row {{
     height: 1;
-    width: auto;
+    width: 100%;
     layout: horizontal;
     align: center middle;
     margin-bottom: 0;
@@ -669,11 +668,10 @@ class WordleApp(App[None]):
         return WordleGame(target)
 
     def compose(self) -> ComposeResult:
-        # Top Bar with interactive length pills
-        pills = [LengthPillWidget(l) for l in (4, 5, 6, 7, 8)]
+        # Top Bar with interactive length indicators
         yield Horizontal(
             Static("󰬡 WORDLE ITALIANO", id="top-title"),
-            Horizontal(*pills, id="top-pills"),
+            Static("", id="top-pills"),
             Static("", id="top-stats"),
             id="top-bar",
         )
@@ -741,15 +739,14 @@ class WordleApp(App[None]):
         self._update_headers()
 
     def _update_headers(self) -> None:
-        # Update pills
+        # Update pills with clear number keys [4] 4L  [5] 5L  [6] 6L  [7] 7L  [8] 8L
+        pills = []
         for l in (4, 5, 6, 7, 8):
-            try:
-                pill = self.query_one(f"#pill-{l}", LengthPillWidget)
-                pill.remove_class("len-pill-active")
-                if l == self.word_length:
-                    pill.add_class("len-pill-active")
-            except Exception:
-                pass
+            if l == self.word_length:
+                pills.append(f"[bold #1e1f29 on #ff79c6] [{l}] {l}L [/]")
+            else:
+                pills.append(f"[bold #6272a4] [{l}] {l}L [/]")
+        self.query_one("#top-pills", Static).update(" ".join(pills))
 
         # Update stats top
         tot = self.stats_manager.total_played
@@ -768,7 +765,7 @@ class WordleApp(App[None]):
             f"Dizionario Italiano: [bold {FG_MAIN}]{t_cnt:,}[/] segrete • [bold {FG_MAIN}]{g_cnt:,}[/] ammesse"
         )
         self.query_one("#hero-meta-streak", Static).update(
-            f"Record Serie: [bold {ACCENT_ORANGE}]{self.stats_manager.max_streak}[/]  •  Tasti: [bold {FG_MAIN}]4-8[/] per cambiare lunghezza"
+            f"Record Serie: [bold {ACCENT_ORANGE}]{self.stats_manager.max_streak}[/]  •  Premi [bold {FG_MAIN}]4, 5, 6, 7, 8[/] per cambiare lunghezza"
         )
 
     def _refresh_board_tiles(self) -> None:
@@ -834,6 +831,10 @@ class WordleApp(App[None]):
             self._handle_backspace()
         else:
             self._handle_letter(key_id)
+
+    @on(events.Click, "#top-pills")
+    def on_top_pills_click(self) -> None:
+        self.action_choose_length()
 
     def action_pause_menu(self) -> None:
         """Open pause menu when Esc is pressed during active game."""
