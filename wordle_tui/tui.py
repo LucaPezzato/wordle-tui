@@ -276,9 +276,15 @@ ModalScreen {{
     border: round {BORDER_PRIMARY};
 }}
 
-.dialog-btn:hover {{
+.dialog-btn:hover,
+.dialog-btn:focus,
+.pause-grid Button:focus,
+.len-grid Button:focus,
+.game-over-buttons Button:focus {{
     background: {ACCENT_PINK};
     color: #1e1f29;
+    border: double #f8f8f2;
+    text-style: bold;
 }}
 
 .stat-row {{
@@ -480,13 +486,54 @@ class GameOverModal(ModalScreen[None]):
     def on_key(self, event: events.Key) -> None:
         if not getattr(self, "can_dismiss", True):
             return
-        key = event.key.lower()
-        if key in ("enter", "n"):
+        key = event.key
+        focused = self.app.focused
+        btn_ids = ["btn-new", "btn-copy", "btn-close"]
+
+        if key == "right":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx + 1) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one("#btn-new", Button).focus()
+            event.prevent_default()
+            return
+        elif key == "left":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx - 1) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one("#btn-new", Button).focus()
+            event.prevent_default()
+            return
+        elif key == "down":
+            if focused and focused.id == "btn-new":
+                self.query_one("#btn-copy", Button).focus()
+                event.prevent_default()
+                return
+        elif key == "up":
+            if focused and focused.id in ("btn-copy", "btn-close"):
+                self.query_one("#btn-new", Button).focus()
+                event.prevent_default()
+                return
+        elif key in ("enter", "space"):
+            if focused and isinstance(focused, Button):
+                focused.press()
+                event.prevent_default()
+                return
+            else:
+                self.dismiss()
+                self.app.start_new_game()
+                return
+
+        # Direct shortcuts
+        k = key.lower()
+        if k in ("enter", "n"):
             self.dismiss()
             self.app.start_new_game()
-        elif key in ("c", "y"):
+        elif k in ("c", "y"):
             self.action_copy()
-        elif key in ("escape", "q"):
+        elif k in ("escape", "q"):
             self.dismiss()
 
 
@@ -527,10 +574,53 @@ class LengthModal(ModalScreen[int]):
             self.dismiss(None)
 
     def on_key(self, event: events.Key) -> None:
-        if event.key in ("escape", "q"):
+        key = event.key
+        focused = self.app.focused
+        btn_ids = [f"len-{l}" for l in self.available_lengths] + ["btn-cancel"]
+        cols = 3
+
+        if key == "right":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx + 1) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one(f"#{btn_ids[0]}", Button).focus()
+            event.prevent_default()
+            return
+        elif key == "left":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx - 1) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one(f"#{btn_ids[0]}", Button).focus()
+            event.prevent_default()
+            return
+        elif key == "down":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx + cols) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one(f"#{btn_ids[0]}", Button).focus()
+            event.prevent_default()
+            return
+        elif key == "up":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx - cols) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one(f"#{btn_ids[0]}", Button).focus()
+            event.prevent_default()
+            return
+        elif key in ("enter", "space"):
+            if focused and isinstance(focused, Button):
+                focused.press()
+                event.prevent_default()
+                return
+
+        if key in ("escape", "q", "Q"):
             self.dismiss(None)
-        elif event.key.isdigit():
-            val = int(event.key)
+        elif key.isdigit():
+            val = int(key)
             if val in self.available_lengths:
                 self.dismiss(val)
 
@@ -680,23 +770,70 @@ class PauseModal(ModalScreen[Optional[str]]):
             self.dismiss("quit")
 
     def on_key(self, event: events.Key) -> None:
-        key = event.key.lower()
-        if key in ("escape", "enter"):
+        key = event.key
+        focused = self.app.focused
+        btn_ids = ["btn-resume", "btn-new", "btn-surrender", "btn-len", "btn-stats", "btn-quit"]
+        cols = 2
+
+        if key == "right":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx + 1) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one("#btn-resume", Button).focus()
+            event.prevent_default()
+            return
+        elif key == "left":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx - 1) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one("#btn-resume", Button).focus()
+            event.prevent_default()
+            return
+        elif key == "down":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx + cols) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one("#btn-resume", Button).focus()
+            event.prevent_default()
+            return
+        elif key == "up":
+            if focused and focused.id in btn_ids:
+                idx = btn_ids.index(focused.id)
+                self.query_one(f"#{btn_ids[(idx - cols) % len(btn_ids)]}", Button).focus()
+            else:
+                self.query_one("#btn-resume", Button).focus()
+            event.prevent_default()
+            return
+        elif key in ("enter", "space"):
+            if focused and isinstance(focused, Button):
+                focused.press()
+                event.prevent_default()
+                return
+            else:
+                self.dismiss("resume")
+                return
+
+        # Direct letter shortcuts
+        k = key.lower()
+        if k in ("escape",):
             self.dismiss("resume")
-        elif key == "n":
+        elif k == "n":
             self.dismiss("new")
-        elif key == "a":
+        elif k == "a":
             self.dismiss("surrender")
-        elif key == "l":
+        elif k == "l":
             self.dismiss("len")
-        elif key == "s":
+        elif k == "s":
             self.dismiss("stats")
-        elif key in ("h", "question_mark"):
+        elif k in ("h", "question_mark"):
             self.dismiss("help")
-        elif key == "q":
+        elif k == "q":
             self.dismiss("quit")
-        elif key.isdigit() and int(key) in (4, 5, 6, 7, 8):
-            self.dismiss(f"len-{key}")
+        elif k.isdigit() and int(k) in (4, 5, 6, 7, 8):
+            self.dismiss(f"len-{k}")
 
 
 class WordleApp(App[None]):
