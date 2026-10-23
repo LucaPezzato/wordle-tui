@@ -743,19 +743,16 @@ class WordleApp(App[None]):
             board_rows.append(Horizontal(*tiles, classes="wordle-row", id=f"row-{r}"))
         board = Container(*board_rows, id="board-container")
 
-        # Build clean alphabet letter tracker (QWERTY layout)
-        r1 = ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"]
-        r2 = ["A", "S", "D", "F", "G", "H", "J", "K", "L"]
-        r3 = ["Z", "X", "C", "V", "B", "N", "M"]
+        # Build clean alphabet letter tracker in alphabetical order (2 rows of 13 letters)
+        r1 = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"]
+        r2 = ["N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
 
         row1_keys = [KeyWidget(k) for k in r1]
         row2_keys = [KeyWidget(k) for k in r2]
-        row3_keys = [KeyWidget(k) for k in r3]
         keyboard = Container(
-            Static("── LETTERE DELL'ALFABETO (Stato) ──", id="kb-header"),
+            Static("── LETTERE DELL'ALFABETO (A-Z) ──", id="kb-header"),
             Horizontal(*row1_keys, classes="kb-row"),
             Horizontal(*row2_keys, classes="kb-row"),
-            Horizontal(*row3_keys, classes="kb-row"),
             id="keyboard-container",
         )
 
