@@ -230,15 +230,18 @@ Screen {{
 }}
 
 /* Modals */
+ModalScreen {{
+    align: center middle;
+    background: rgba(0, 0, 0, 0.7);
+}}
+
 .modal-dialog {{
-    grid-size: 1;
-    grid-rows: auto;
     width: 60;
+    height: auto;
     max-height: 85%;
     background: {BG_CARD};
     border: round {BORDER_PRIMARY};
     padding: 1 2;
-    align: center middle;
     overflow-y: auto;
 }}
 
@@ -313,16 +316,32 @@ Screen {{
     text-style: bold;
 }}
 
-.pause-menu-buttons {{
-    layout: vertical;
-    align: center middle;
+.pause-grid {{
+    layout: grid;
+    grid-size: 2;
+    grid-gutter: 1;
     width: 100%;
-    margin-top: 1;
+    height: auto;
+    margin: 1 0;
 }}
 
-.pause-menu-buttons Button {{
-    width: 38;
-    margin: 0 0 1 0;
+.pause-grid Button {{
+    width: 100%;
+    height: 3;
+}}
+
+.len-grid {{
+    layout: grid;
+    grid-size: 3;
+    grid-gutter: 1;
+    width: 100%;
+    height: auto;
+    margin: 1 0;
+}}
+
+.len-grid Button {{
+    width: 100%;
+    height: 3;
 }}
 """
 
@@ -443,8 +462,8 @@ class LengthModal(ModalScreen[int]):
 
         yield Vertical(
             Label("📏 SCEGLI LA LUNGHEZZA DELLA PAROLA", classes="modal-title"),
-            Label("Seleziona il numero di lettere per le prossime partite:", classes="modal-text"),
-            Horizontal(*buttons, classes="modal-buttons"),
+            Label("Seleziona il numero di lettere per le prossime partite:", classes="modal-subtitle"),
+            Grid(*buttons, classes="len-grid"),
             Horizontal(
                 Button("Annulla [Esc]", id="btn-cancel", classes="dialog-btn"),
                 classes="modal-buttons",
@@ -584,15 +603,15 @@ class PauseModal(ModalScreen[Optional[str]]):
     def compose(self) -> ComposeResult:
         yield Vertical(
             Label("⏸️ PARTITA IN PAUSA", classes="modal-title"),
-            Label("I comandi a singola lettera sono attivi in questo menu:", classes="modal-subtitle"),
-            Vertical(
-                Button("▶️  Riprendi Gioco [Esc / Enter]", id="btn-resume", classes="dialog-btn", variant="primary"),
-                Button("🔄  Nuova Partita [N]", id="btn-new", classes="dialog-btn"),
-                Button("📏  Cambia Lunghezza [L]", id="btn-len", classes="dialog-btn"),
-                Button("📊  Statistiche [S]", id="btn-stats", classes="dialog-btn"),
-                Button("📖  Regole & Aiuto [H]", id="btn-help", classes="dialog-btn"),
-                Button("🚪  Esci dal Gioco [Q]", id="btn-quit", classes="dialog-btn"),
-                classes="pause-menu-buttons",
+            Label("Seleziona un'azione [Enter/Esc per riprendere]:", classes="modal-subtitle"),
+            Grid(
+                Button("▶️ Riprendi [Esc]", id="btn-resume", classes="dialog-btn", variant="primary"),
+                Button("🔄 Nuova Partita [N]", id="btn-new", classes="dialog-btn"),
+                Button("📏 Lunghezza [L]", id="btn-len", classes="dialog-btn"),
+                Button("📊 Statistiche [S]", id="btn-stats", classes="dialog-btn"),
+                Button("📖 Regole [H]", id="btn-help", classes="dialog-btn"),
+                Button("🚪 Esci [Q]", id="btn-quit", classes="dialog-btn"),
+                classes="pause-grid",
             ),
             classes="modal-dialog",
         )
