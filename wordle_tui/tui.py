@@ -161,11 +161,20 @@ Screen {{
     height: auto;
     layout: vertical;
     align: center middle;
-    margin-bottom: 1;
+    margin-top: 1;
+    margin-bottom: 0;
+}}
+
+#kb-header {{
+    width: 100%;
+    text-align: center;
+    color: {FG_MUTED};
+    text-style: dim;
+    margin-bottom: 0;
 }}
 
 .kb-row {{
-    height: 2;
+    height: 1;
     width: auto;
     layout: horizontal;
     align: center middle;
@@ -173,41 +182,33 @@ Screen {{
 }}
 
 .kb-key {{
-    width: 4;
-    height: 2;
+    width: 3;
+    height: 1;
     content-align: center middle;
     text-style: bold;
     margin: 0 1;
-    background: {BG_CARD};
-    border: round {BORDER_SECONDARY};
-    color: {FG_MAIN};
-}}
-
-.kb-key-wide {{
-    width: 7;
-}}
-
-.kb-key:hover {{
-    background: {BG_SELECT};
-    border: round {ACCENT_PINK};
+    background: transparent;
+    border: none;
+    color: {ACCENT_CYAN};
 }}
 
 .kb-correct {{
     background: {ACCENT_GREEN};
-    border: round {ACCENT_GREEN};
+    border: none;
     color: #1e1f29;
 }}
 
 .kb-present {{
     background: {ACCENT_YELLOW};
-    border: round {ACCENT_YELLOW};
+    border: none;
     color: #1e1f29;
 }}
 
 .kb-absent {{
-    background: #333644;
-    border: round #333644;
-    color: {FG_MUTED};
+    background: transparent;
+    border: none;
+    color: {BG_SELECT};
+    text-style: strike;
 }}
 
 #footer-bar {{
@@ -342,16 +343,10 @@ class TileWidget(Static):
 
 
 class KeyWidget(Static):
-    """Clickable keyboard button."""
-    def __init__(self, key_id: str, label: str, is_wide: bool = False) -> None:
-        super().__init__(label, id=f"kb-{key_id}")
+    """Clickable alphabet letter tracker."""
+    def __init__(self, key_id: str) -> None:
+        super().__init__(key_id, id=f"kb-{key_id}", classes="kb-key")
         self.key_id = key_id
-        self.is_wide = is_wide
-
-    def on_mount(self) -> None:
-        self.add_class("kb-key")
-        if self.is_wide:
-            self.add_class("kb-key-wide")
 
     def on_click(self) -> None:
         self.app.on_virtual_key(self.key_id)
@@ -688,18 +683,16 @@ class WordleApp(App[None]):
             board_rows.append(Horizontal(*tiles, classes="wordle-row", id=f"row-{r}"))
         board = Container(*board_rows, id="board-container")
 
-        # Build fixed keyboard layout
+        # Build clean alphabet letter tracker (QWERTY layout)
         r1 = ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"]
         r2 = ["A", "S", "D", "F", "G", "H", "J", "K", "L"]
-        r3 = ["ENTER", "Z", "X", "C", "V", "B", "N", "M", "BACKSPACE"]
+        r3 = ["Z", "X", "C", "V", "B", "N", "M"]
 
-        row1_keys = [KeyWidget(k, k) for k in r1]
-        row2_keys = [KeyWidget(k, k) for k in r2]
-        row3_keys = [
-            KeyWidget(k, "INVIA" if k == "ENTER" else ("⌫" if k == "BACKSPACE" else k), is_wide=(k in ("ENTER", "BACKSPACE")))
-            for k in r3
-        ]
+        row1_keys = [KeyWidget(k) for k in r1]
+        row2_keys = [KeyWidget(k) for k in r2]
+        row3_keys = [KeyWidget(k) for k in r3]
         keyboard = Container(
+            Static("── LETTERE DELL'ALFABETO (Stato) ──", id="kb-header"),
             Horizontal(*row1_keys, classes="kb-row"),
             Horizontal(*row2_keys, classes="kb-row"),
             Horizontal(*row3_keys, classes="kb-row"),
@@ -756,7 +749,7 @@ class WordleApp(App[None]):
             f"Dizionario Italiano: [bold {FG_MAIN}]{t_cnt:,}[/] segrete • [bold {FG_MAIN}]{g_cnt:,}[/] ammesse"
         )
         self.query_one("#hero-meta-streak", Static).update(
-            f"Record Serie: [bold {ACCENT_ORANGE}]{self.stats_manager.max_streak}[/]  •  Tasti: [bold {FG_MAIN}4-8[/] per cambiare lunghezza"
+            f"Record Serie: [bold {ACCENT_ORANGE}]{self.stats_manager.max_streak}[/]  •  Tasti: [bold {FG_MAIN}]4-8[/] per cambiare lunghezza"
         )
 
     def _refresh_board_tiles(self) -> None:
