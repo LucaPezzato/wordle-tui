@@ -294,7 +294,46 @@ Screen {{
     color: {ACCENT_GREEN};
     text-style: bold;
 }}
+
+.len-pill {{
+    padding: 0 1;
+    color: {FG_MUTED};
+    background: {BG_CARD};
+}}
+
+.len-pill:hover {{
+    color: {FG_MAIN};
+    background: {BG_SELECT};
+}}
+
+.len-pill-active {{
+    color: {ACCENT_PINK};
+    background: {BG_SELECT};
+    text-style: bold;
+}}
+
+.pause-menu-buttons {{
+    layout: vertical;
+    align: center middle;
+    width: 100%;
+    margin-top: 1;
+}}
+
+.pause-menu-buttons Button {{
+    width: 38;
+    margin: 0 0 1 0;
+}}
 """
+
+
+class LengthPillWidget(Static):
+    """Clickable word length pill in top bar."""
+    def __init__(self, length: int) -> None:
+        super().__init__(f"[{length}L]", id=f"pill-{length}", classes="len-pill")
+        self.length = length
+
+    def on_click(self) -> None:
+        self.app.run_worker(self.app.change_word_length(self.length))
 
 
 class TileWidget(Static):
@@ -513,15 +552,16 @@ class HelpModal(ModalScreen[None]):
             f"  [bold {ACCENT_YELLOW}]🟨 GIALLO[/]   : La lettera è presente nella parola ma in una posizione diversa.\n"
             f"  [bold {FG_MUTED}]⬛ GRIGIO[/]   : La lettera non è presente nella parola.\n\n"
             f"[bold {ACCENT_CYAN}]COMANDI DA TASTIERA:[/]\n"
-            f"• [bold {FG_MAIN}]A-Z[/]       : Digita le lettere\n"
-            f"• [bold {FG_MAIN}]Enter[/]     : Conferma e invia la parola\n"
-            f"• [bold {FG_MAIN}]Backspace[/] : Cancella l'ultima lettera digitata\n"
-            f"• [bold {FG_MAIN}]4, 5, 6, 7, 8[/]: Cambia immediatamente la lunghezza della parola\n"
-            f"• [bold {FG_MAIN}]l[/] o [bold {FG_MAIN}]L[/]     : Apri menu scelta lunghezza\n"
-            f"• [bold {FG_MAIN}]n[/]         : Nuova partita\n"
-            f"• [bold {FG_MAIN}]s[/]         : Mostra statistiche\n"
-            f"• [bold {FG_MAIN}]? / h[/]     : Questo aiuto\n"
-            f"• [bold {FG_MAIN}]q[/]         : Esci dal gioco"
+            f"• [bold {FG_MAIN}]A-Z[/]         : Digita le lettere della parola\n"
+            f"• [bold {FG_MAIN}]Enter[/]       : Conferma e invia la parola\n"
+            f"• [bold {FG_MAIN}]Backspace[/]   : Cancella l'ultima lettera digitata\n"
+            f"• [bold {FG_MAIN}]Esc[/]         : Apri menu pausa (per nuova partita, statistiche, esci)\n"
+            f"• [bold {FG_MAIN}]4, 5, 6, 7, 8[/] : Cambia lunghezza parola (o clicca in alto)\n"
+            f"• [bold {FG_MAIN}]Ctrl+N[/]      : Nuova partita rapida\n"
+            f"• [bold {FG_MAIN}]Ctrl+S[/]      : Mostra statistiche\n"
+            f"• [bold {FG_MAIN}]Ctrl+L[/]      : Menu scelta lunghezza\n"
+            f"• [bold {FG_MAIN}]? / F1[/]      : Questa guida\n"
+            f"• [bold {FG_MAIN}]Ctrl+Q[/]      : Esci dal gioco"
         )
 
         yield Vertical(
@@ -543,6 +583,59 @@ class HelpModal(ModalScreen[None]):
             self.dismiss()
 
 
+class PauseModal(ModalScreen[Optional[str]]):
+    """Pause & options menu shown when Esc is pressed during game."""
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label("⏸️ PARTITA IN PAUSA", classes="modal-title"),
+            Label("I comandi a singola lettera sono attivi in questo menu:", classes="modal-subtitle"),
+            Vertical(
+                Button("▶️  Riprendi Gioco [Esc / Enter]", id="btn-resume", classes="dialog-btn", variant="primary"),
+                Button("🔄  Nuova Partita [N]", id="btn-new", classes="dialog-btn"),
+                Button("📏  Cambia Lunghezza [L]", id="btn-len", classes="dialog-btn"),
+                Button("📊  Statistiche [S]", id="btn-stats", classes="dialog-btn"),
+                Button("📖  Regole & Aiuto [H]", id="btn-help", classes="dialog-btn"),
+                Button("🚪  Esci dal Gioco [Q]", id="btn-quit", classes="dialog-btn"),
+                classes="pause-menu-buttons",
+            ),
+            classes="modal-dialog",
+        )
+
+    @on(Button.Pressed)
+    def on_btn(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        if bid == "btn-resume":
+            self.dismiss("resume")
+        elif bid == "btn-new":
+            self.dismiss("new")
+        elif bid == "btn-len":
+            self.dismiss("len")
+        elif bid == "btn-stats":
+            self.dismiss("stats")
+        elif bid == "btn-help":
+            self.dismiss("help")
+        elif bid == "btn-quit":
+            self.dismiss("quit")
+
+    def on_key(self, event: events.Key) -> None:
+        key = event.key.lower()
+        if key in ("escape", "enter"):
+            self.dismiss("resume")
+        elif key == "n":
+            self.dismiss("new")
+        elif key == "l":
+            self.dismiss("len")
+        elif key == "s":
+            self.dismiss("stats")
+        elif key in ("h", "question_mark"):
+            self.dismiss("help")
+        elif key == "q":
+            self.dismiss("quit")
+        elif key.isdigit() and int(key) in (4, 5, 6, 7, 8):
+            self.dismiss(f"len-{key}")
+
+
 class WordleApp(App[None]):
     """Dracula Italian Wordle TUI Application."""
 
@@ -562,10 +655,11 @@ class WordleApp(App[None]):
         return WordleGame(target)
 
     def compose(self) -> ComposeResult:
-        # Top Bar
+        # Top Bar with interactive length pills
+        pills = [LengthPillWidget(l) for l in (4, 5, 6, 7, 8)]
         yield Horizontal(
             Static("󰬡 WORDLE ITALIANO", id="top-title"),
-            Static("", id="top-pills"),
+            Horizontal(*pills, id="top-pills"),
             Static("", id="top-stats"),
             id="top-bar",
         )
@@ -622,7 +716,7 @@ class WordleApp(App[None]):
         # Footer Bar
         yield Horizontal(
             Static(
-                "[Enter] Invia  [⌫] Cancella  [4-8] Lunghezza  [n] Nuova  [s] Stats  [?] Aiuto  [q] Esci",
+                "[Enter] Invia  [⌫] Cancella  [4-8] Lunghezza  [Esc] Menu / Pausa  [?] Aiuto",
                 id="footer-hints",
             ),
             Static("", id="footer-status"),
@@ -636,15 +730,14 @@ class WordleApp(App[None]):
 
     def _update_headers(self) -> None:
         # Update pills
-        avail = self.dict_manager.get_available_lengths()
-        pills = []
-        for l in avail:
-            if l <= 8:
+        for l in (4, 5, 6, 7, 8):
+            try:
+                pill = self.query_one(f"#pill-{l}", LengthPillWidget)
+                pill.remove_class("len-pill-active")
                 if l == self.word_length:
-                    pills.append(f"[bold {ACCENT_PINK}][{l}L][/]")
-                else:
-                    pills.append(f"[{l}L]")
-        self.query_one("#top-pills", Static).update(" ".join(pills))
+                    pill.add_class("len-pill-active")
+            except Exception:
+                pass
 
         # Update stats top
         tot = self.stats_manager.total_played
@@ -730,31 +823,46 @@ class WordleApp(App[None]):
         else:
             self._handle_letter(key_id)
 
+    def action_pause_menu(self) -> None:
+        """Open pause menu when Esc is pressed during active game."""
+        def _on_pause_result(action: Optional[str]) -> None:
+            if not action or action == "resume":
+                return
+            if action == "new":
+                self.start_new_game()
+            elif action == "len":
+                self.action_choose_length()
+            elif action.startswith("len-"):
+                l = int(action.split("-")[1])
+                self.run_worker(self.change_word_length(l))
+            elif action == "stats":
+                self.push_screen(StatsModal(self.stats_manager, self.word_length))
+            elif action == "help":
+                self.push_screen(HelpModal())
+            elif action == "quit":
+                self.exit()
+
+        self.push_screen(PauseModal(), _on_pause_result)
+
     def on_key(self, event: events.Key) -> None:
         """Handle keyboard input."""
         key = event.key
 
-        if key in ("escape",):
-            return
-
-        if key in ("q", "Q"):
+        # Standard Ctrl / Function shortcuts always available
+        if key in ("ctrl+c", "ctrl+q"):
             self.exit()
             return
-
-        if key in ("n", "N"):
+        if key == "ctrl+n":
             self.start_new_game()
             return
-
-        if key in ("s", "S"):
+        if key == "ctrl+s":
             self.push_screen(StatsModal(self.stats_manager, self.word_length))
             return
-
-        if key in ("question_mark", "h", "H"):
-            self.push_screen(HelpModal())
-            return
-
-        if key in ("l", "L"):
+        if key == "ctrl+l":
             self.action_choose_length()
+            return
+        if key in ("ctrl+h", "f1", "question_mark"):
+            self.push_screen(HelpModal())
             return
 
         # Direct number keys 4..8 to change length
@@ -764,16 +872,34 @@ class WordleApp(App[None]):
                 self.run_worker(self.change_word_length(val))
                 return
 
-        if self.game.status != GameStatus.PLAYING:
-            if key == "enter":
-                self.start_new_game()
+        # Escape key: opens Pause Menu when playing, or exits if game is over
+        if key == "escape":
+            if self.game.status == GameStatus.PLAYING:
+                self.action_pause_menu()
+            else:
+                self.exit()
             return
 
+        # If game is finished, letters act as convenient shortcuts
+        if self.game.status != GameStatus.PLAYING:
+            if key in ("enter", "space", "n", "N"):
+                self.start_new_game()
+            elif key in ("s", "S"):
+                self.push_screen(StatsModal(self.stats_manager, self.word_length))
+            elif key in ("l", "L"):
+                self.action_choose_length()
+            elif key in ("q", "Q"):
+                self.exit()
+            elif key in ("h", "H"):
+                self.push_screen(HelpModal())
+            return
+
+        # Playing state: ONLY Wordle inputs! Every single letter A-Z goes to the word!
         if key == "enter":
             self._handle_enter()
         elif key in ("backspace", "delete"):
             self._handle_backspace()
-        elif len(key) == 1 and key.isalpha():
+        elif len(key) == 1 and key.isalpha() and key.isascii():
             self._handle_letter(key)
 
     def _handle_letter(self, char: str) -> None:
