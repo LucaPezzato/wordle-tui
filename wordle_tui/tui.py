@@ -69,25 +69,25 @@ Screen {{
 }}
 
 #hero-card {{
-    height: 7;
+    height: 5;
     width: 100%;
     background: {BG_CARD};
     border: round {BORDER_PRIMARY};
     padding: 0 1;
     layout: horizontal;
-    margin-bottom: 1;
+    margin-bottom: 0;
 }}
 
 #hero-logo {{
-    width: 32;
-    height: 5;
+    width: 24;
+    height: 3;
     color: {ACCENT_PURPLE if 'ACCENT_PURPLE' in globals() else BORDER_PRIMARY};
     content-align: left middle;
 }}
 
 #hero-meta {{
     width: 1fr;
-    height: 5;
+    height: 3;
     layout: vertical;
     content-align: left middle;
     padding-left: 1;
@@ -109,7 +109,7 @@ Screen {{
     width: 100%;
     height: auto;
     align: center top;
-    margin-bottom: 1;
+    margin-bottom: 0;
 }}
 
 .wordle-row {{
@@ -402,6 +402,14 @@ class GameOverModal(ModalScreen[None]):
         super().__init__()
         self.game = game
         self.stats = stats
+        self.can_dismiss = False
+
+    def on_mount(self) -> None:
+        # Prevent lingering Enter key from instantly dismissing the dialog
+        self.set_timer(0.4, self._enable_dismiss)
+
+    def _enable_dismiss(self) -> None:
+        self.can_dismiss = True
 
     def compose(self) -> ComposeResult:
         won = self.game.status == GameStatus.WON
@@ -421,7 +429,7 @@ class GameOverModal(ModalScreen[None]):
             ),
             Static(self._build_emoji_box(), id="emoji-box"),
             Vertical(
-                Button("🔄 Nuova Partita [Enter]", id="btn-new", classes="dialog-btn", variant="primary"),
+                Button("🔄 Nuova Partita [Enter / N]", id="btn-new", classes="dialog-btn"),
                 Horizontal(
                     Button("📋 Copia Risultato [C]", id="btn-copy", classes="dialog-btn"),
                     Button("Chiudi [Esc]", id="btn-close", classes="dialog-btn"),
@@ -455,6 +463,8 @@ class GameOverModal(ModalScreen[None]):
 
     @on(Button.Pressed, "#btn-new")
     def action_new_game(self) -> None:
+        if not getattr(self, "can_dismiss", True):
+            return
         self.dismiss()
         self.app.start_new_game()
 
@@ -463,6 +473,8 @@ class GameOverModal(ModalScreen[None]):
         self.dismiss()
 
     def on_key(self, event: events.Key) -> None:
+        if not getattr(self, "can_dismiss", True):
+            return
         key = event.key.lower()
         if key in ("enter", "n"):
             self.dismiss()
@@ -978,7 +990,13 @@ class WordleApp(App[None]):
                 self.game.target,
             )
             self._update_headers()
-            self.push_screen(GameOverModal(self.game, self.stats_manager))
+            if won:
+                self.flash_status(f"🎉 VITTORIA in {self.game.attempt_count}/{self.game.max_attempts} tentativi!", duration=10.0)
+            else:
+                self.flash_status(f"💀 Parola segreta: {self.game.target}", duration=10.0)
+
+            # Smoothly open game over dialog after showing final board row
+            self.set_timer(0.4, lambda: self.push_screen(GameOverModal(self.game, self.stats_manager)))
         else:
             self.flash_status(msg)
 
