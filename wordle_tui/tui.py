@@ -1,0 +1,855 @@
+"""Textual TUI implementation for Dracula Italian Wordle."""
+
+from __future__ import annotations
+
+import subprocess
+from typing import Dict, List, Optional
+
+from rich.text import Text
+from textual import events, on, work
+from textual.app import App, ComposeResult
+from textual.containers import Container, Grid, Horizontal, ScrollableContainer, Vertical
+from textual.screen import ModalScreen
+from textual.widgets import Button, Footer, Header, Label, ProgressBar, Static
+
+from wordle_tui.dictionary import WordleDictionary
+from wordle_tui.game import GameStatus, LetterState, WordleGame
+from wordle_tui.stats import WordleStats
+
+
+# Dracula Palette constants
+BG_SCREEN = "#1e1f29"
+BG_CARD = "#282a36"
+BG_SELECT = "#44475a"
+BORDER_PRIMARY = "#bd93f9"
+BORDER_SECONDARY = "#6272a4"
+ACCENT_PINK = "#ff79c6"
+ACCENT_GREEN = "#50fa7b"
+ACCENT_CYAN = "#8be9fd"
+ACCENT_YELLOW = "#f1fa8c"
+ACCENT_ORANGE = "#ffb86c"
+ALERT_RED = "#ff5555"
+FG_MAIN = "#f8f8f2"
+FG_MUTED = "#6272a4"
+
+
+TCSS = f"""
+Screen {{
+    background: {BG_SCREEN};
+    color: {FG_MAIN};
+    padding: 0 1;
+    overflow: hidden;
+}}
+
+#top-bar {{
+    height: 1;
+    width: 100%;
+    margin-top: 0;
+    layout: horizontal;
+    background: {BG_SCREEN};
+}}
+
+#top-title {{
+    width: auto;
+    color: {ACCENT_PINK};
+    text-style: bold;
+    margin-right: 2;
+}}
+
+#top-pills {{
+    width: auto;
+    color: {FG_MUTED};
+    margin-right: 2;
+}}
+
+#top-stats {{
+    width: 1fr;
+    text-align: right;
+    color: {ACCENT_CYAN};
+}}
+
+#hero-card {{
+    height: 7;
+    width: 100%;
+    background: {BG_CARD};
+    border: round {BORDER_PRIMARY};
+    padding: 0 1;
+    layout: horizontal;
+    margin-bottom: 1;
+}}
+
+#hero-logo {{
+    width: 32;
+    height: 5;
+    color: {ACCENT_PURPLE if 'ACCENT_PURPLE' in globals() else BORDER_PRIMARY};
+    content-align: left middle;
+}}
+
+#hero-meta {{
+    width: 1fr;
+    height: 5;
+    layout: vertical;
+    content-align: left middle;
+    padding-left: 1;
+}}
+
+.hero-line {{
+    height: 1;
+}}
+
+#workspace {{
+    height: 1fr;
+    width: 100%;
+    layout: vertical;
+    align: center top;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}}
+
+#board-container {{
+    width: auto;
+    height: auto;
+    align: center middle;
+    margin-bottom: 1;
+}}
+
+.wordle-row {{
+    height: 3;
+    width: auto;
+    layout: horizontal;
+    align: center middle;
+    margin-bottom: 0;
+}}
+
+.tile {{
+    width: 5;
+    height: 3;
+    content-align: center middle;
+    text-style: bold;
+    margin: 0 1;
+    border: round {BORDER_SECONDARY};
+    background: {BG_CARD};
+    color: {FG_MUTED};
+}}
+
+.tile-typing {{
+    border: round {ACCENT_PINK};
+    color: {FG_MAIN};
+    background: {BG_CARD};
+}}
+
+.tile-correct {{
+    background: {ACCENT_GREEN};
+    border: round {ACCENT_GREEN};
+    color: #1e1f29;
+}}
+
+.tile-present {{
+    background: {ACCENT_YELLOW};
+    border: round {ACCENT_YELLOW};
+    color: #1e1f29;
+}}
+
+.tile-absent {{
+    background: {BG_SELECT};
+    border: round {BG_SELECT};
+    color: {FG_MUTED};
+}}
+
+#keyboard-container {{
+    width: auto;
+    height: auto;
+    layout: vertical;
+    align: center middle;
+    margin-bottom: 1;
+}}
+
+.kb-row {{
+    height: 2;
+    width: auto;
+    layout: horizontal;
+    align: center middle;
+    margin-bottom: 0;
+}}
+
+.kb-key {{
+    width: 4;
+    height: 2;
+    content-align: center middle;
+    text-style: bold;
+    margin: 0 1;
+    background: {BG_CARD};
+    border: round {BORDER_SECONDARY};
+    color: {FG_MAIN};
+}}
+
+.kb-key-wide {{
+    width: 7;
+}}
+
+.kb-key:hover {{
+    background: {BG_SELECT};
+    border: round {ACCENT_PINK};
+}}
+
+.kb-correct {{
+    background: {ACCENT_GREEN};
+    border: round {ACCENT_GREEN};
+    color: #1e1f29;
+}}
+
+.kb-present {{
+    background: {ACCENT_YELLOW};
+    border: round {ACCENT_YELLOW};
+    color: #1e1f29;
+}}
+
+.kb-absent {{
+    background: #333644;
+    border: round #333644;
+    color: {FG_MUTED};
+}}
+
+#footer-bar {{
+    height: 1;
+    width: 100%;
+    layout: horizontal;
+    background: {BG_SCREEN};
+}}
+
+#footer-hints {{
+    width: 1fr;
+    color: {FG_MUTED};
+}}
+
+#footer-status {{
+    width: auto;
+    color: {ACCENT_PINK};
+    text-style: bold;
+}}
+
+/* Modals */
+.modal-dialog {{
+    grid-size: 1;
+    grid-rows: auto;
+    width: 60;
+    max-height: 85%;
+    background: {BG_CARD};
+    border: round {BORDER_PRIMARY};
+    padding: 1 2;
+    align: center middle;
+    overflow-y: auto;
+}}
+
+.modal-title {{
+    color: {ACCENT_PINK};
+    text-style: bold;
+    text-align: center;
+    margin-bottom: 1;
+}}
+
+.modal-subtitle {{
+    color: {ACCENT_CYAN};
+    text-align: center;
+    margin-bottom: 1;
+}}
+
+.modal-text {{
+    color: {FG_MAIN};
+    margin-bottom: 1;
+}}
+
+.modal-buttons {{
+    layout: horizontal;
+    align: center middle;
+    height: 3;
+    margin-top: 1;
+}}
+
+.dialog-btn {{
+    margin: 0 1;
+    background: {BG_SELECT};
+    color: {FG_MAIN};
+    border: round {BORDER_PRIMARY};
+}}
+
+.dialog-btn:hover {{
+    background: {ACCENT_PINK};
+    color: #1e1f29;
+}}
+
+.stat-row {{
+    layout: horizontal;
+    height: 1;
+    margin: 0 0;
+}}
+
+.stat-label {{
+    width: 15;
+    color: {FG_MUTED};
+}}
+
+.stat-val {{
+    width: 1fr;
+    color: {ACCENT_GREEN};
+    text-style: bold;
+}}
+"""
+
+
+class TileWidget(Static):
+    """Single Wordle letter tile."""
+    pass
+
+
+class KeyWidget(Static):
+    """Clickable keyboard button."""
+    def __init__(self, key_id: str, label: str, is_wide: bool = False) -> None:
+        super().__init__(label, id=f"kb-{key_id}")
+        self.key_id = key_id
+        self.is_wide = is_wide
+
+    def on_mount(self) -> None:
+        self.add_class("kb-key")
+        if self.is_wide:
+            self.add_class("kb-key-wide")
+
+    def on_click(self) -> None:
+        self.app.on_virtual_key(self.key_id)
+
+
+class GameOverModal(ModalScreen[None]):
+    """Modal displayed when game is won or lost."""
+
+    def __init__(self, game: WordleGame, stats: WordleStats) -> None:
+        super().__init__()
+        self.game = game
+        self.stats = stats
+
+    def compose(self) -> ComposeResult:
+        won = self.game.status == GameStatus.WON
+        title = "🎉 VITTORIA ECCELLENTE!" if won else "💀 PARTITA TERMINATA"
+        title_color = ACCENT_GREEN if won else ALERT_RED
+
+        yield Vertical(
+            Label(title, classes="modal-title", id="go-title"),
+            Label(
+                f"La parola segreta era: [bold {ACCENT_YELLOW}]{self.game.target}[/]",
+                classes="modal-subtitle",
+            ),
+            Label(
+                f"Tentativi utilizzati: [bold]{self.game.attempt_count} / {self.game.max_attempts}[/]  •  "
+                f"Serie attuale: [bold {ACCENT_ORANGE}]🔥 {self.stats.current_streak}[/]",
+                classes="modal-text",
+            ),
+            Static(self._build_emoji_box(), id="emoji-box"),
+            Horizontal(
+                Button("📋 Copia Griglia Emoji", id="btn-copy", classes="dialog-btn"),
+                Button("🔄 Nuova Partita [Enter]", id="btn-new", classes="dialog-btn", variant="primary"),
+                Button("Chiudi [Esc]", id="btn-close", classes="dialog-btn"),
+                classes="modal-buttons",
+            ),
+            classes="modal-dialog",
+        )
+
+    def _build_emoji_box(self) -> str:
+        lines = [f"[bold {ACCENT_CYAN}]{self.game.get_share_grid()}[/]"]
+        return "\n".join(lines)
+
+    @on(Button.Pressed, "#btn-copy")
+    def action_copy(self) -> None:
+        grid_text = self.game.get_share_grid()
+        copied = False
+        try:
+            p = subprocess.Popen(["wl-copy"], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            p.communicate(input=grid_text.encode("utf-8"), timeout=2)
+            if p.returncode == 0:
+                copied = True
+        except Exception:
+            pass
+
+        if copied:
+            self.app.flash_status("Griglia copiata negli appunti (Wayland)!")
+        else:
+            self.app.flash_status("Griglia visibile nel dialog!")
+
+    @on(Button.Pressed, "#btn-new")
+    def action_new_game(self) -> None:
+        self.dismiss()
+        self.app.start_new_game()
+
+    @on(Button.Pressed, "#btn-close")
+    def action_close(self) -> None:
+        self.dismiss()
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key in ("enter", "n"):
+            self.dismiss()
+            self.app.start_new_game()
+        elif event.key in ("escape", "q"):
+            self.dismiss()
+
+
+class LengthModal(ModalScreen[int]):
+    """Modal dialog to select word length."""
+
+    def __init__(self, current_length: int, available_lengths: List[int]) -> None:
+        super().__init__()
+        self.current_length = current_length
+        self.available_lengths = available_lengths
+
+    def compose(self) -> ComposeResult:
+        buttons = []
+        for l in self.available_lengths:
+            prefix = "★ " if l == self.current_length else ""
+            btn = Button(f"{prefix}{l} Lettere", id=f"len-{l}", classes="dialog-btn")
+            if l == self.current_length:
+                btn.variant = "primary"
+            buttons.append(btn)
+
+        yield Vertical(
+            Label("📏 SCEGLI LA LUNGHEZZA DELLA PAROLA", classes="modal-title"),
+            Label("Seleziona il numero di lettere per le prossime partite:", classes="modal-text"),
+            Horizontal(*buttons, classes="modal-buttons"),
+            Horizontal(
+                Button("Annulla [Esc]", id="btn-cancel", classes="dialog-btn"),
+                classes="modal-buttons",
+            ),
+            classes="modal-dialog",
+        )
+
+    @on(Button.Pressed)
+    def on_button(self, event: Button.Pressed) -> None:
+        if event.button.id and event.button.id.startswith("len-"):
+            val = int(event.button.id.split("-")[1])
+            self.dismiss(val)
+        elif event.button.id == "btn-cancel":
+            self.dismiss(None)
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key in ("escape", "q"):
+            self.dismiss(None)
+        elif event.key.isdigit():
+            val = int(event.key)
+            if val in self.available_lengths:
+                self.dismiss(val)
+
+
+class StatsModal(ModalScreen[None]):
+    """Modal displaying gameplay stats and guess distribution."""
+
+    def __init__(self, stats: WordleStats, current_length: int) -> None:
+        super().__init__()
+        self.stats = stats
+        self.current_length = current_length
+
+    def compose(self) -> ComposeResult:
+        total = self.stats.total_played
+        won = self.stats.total_won
+        pct = self.stats.win_percentage
+        streak = self.stats.current_streak
+        max_s = self.stats.max_streak
+
+        l_stats = self.stats.get_length_stats(self.current_length)
+        l_played = l_stats.get("played", 0)
+        l_won = l_stats.get("won", 0)
+        l_pct = int(round((l_won / l_played * 100))) if l_played > 0 else 0
+
+        # Distribution bars
+        dist = self.stats.guess_distribution
+        max_dist = max(dist.values()) if any(dist.values()) else 1
+
+        dist_lines = []
+        for att in range(1, 7):
+            count = dist.get(str(att), 0)
+            bar_len = int((count / max_dist) * 25) if max_dist > 0 else 0
+            bar = "█" * bar_len
+            dist_lines.append(
+                f"[bold {FG_MAIN}]{att}[/] | [bold {ACCENT_GREEN}]{bar:<25}[/] [bold {FG_MAIN}]{count}[/]"
+            )
+
+        dist_text = "\n".join(dist_lines)
+
+        yield Vertical(
+            Label("📊 STATISTICHE WORDLE ITALIANO", classes="modal-title"),
+            Label(
+                f"[bold {ACCENT_CYAN}]Totali:[/] Giocate: [bold]{total}[/] • Vinte: [bold {ACCENT_GREEN}]{won}[/] ({pct}%) • "
+                f"Serie: [bold {ACCENT_ORANGE}]🔥 {streak}[/] (Max: {max_s})",
+                classes="modal-text",
+            ),
+            Label(
+                f"[bold {BORDER_PRIMARY}]Lunghezza {self.current_length}L:[/] Giocate: [bold]{l_played}[/] • "
+                f"Vinte: [bold {ACCENT_GREEN}]{l_won}[/] ({l_pct}%) • Serie: [bold {ACCENT_ORANGE}]🔥 {l_stats.get('current_streak', 0)}[/]",
+                classes="modal-text",
+            ),
+            Label("DISTRIBUZIONE TENTATIVI:", classes="modal-subtitle"),
+            Static(dist_text, classes="modal-text"),
+            Horizontal(
+                Button("Chiudi [Esc]", id="btn-close", classes="dialog-btn"),
+                classes="modal-buttons",
+            ),
+            classes="modal-dialog",
+        )
+
+    @on(Button.Pressed, "#btn-close")
+    def on_close(self) -> None:
+        self.dismiss()
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key in ("escape", "enter", "q", "s"):
+            self.dismiss()
+
+
+class HelpModal(ModalScreen[None]):
+    """Modal displaying rules and keybindings."""
+
+    def compose(self) -> ComposeResult:
+        rules = (
+            f"[bold {ACCENT_PINK}]COME SI GIOCA A WORDLE ITALIANO:[/]\n"
+            f"1. Indovina la parola segreta in 6 tentativi.\n"
+            f"2. Ogni tentativo deve essere una parola italiana valida.\n"
+            f"3. Dopo ogni invio, i colori delle caselle cambieranno:\n\n"
+            f"  [bold {ACCENT_GREEN}]🟩 VERDE[/]    : La lettera è presente nella parola ed è nella posizione corretta.\n"
+            f"  [bold {ACCENT_YELLOW}]🟨 GIALLO[/]   : La lettera è presente nella parola ma in una posizione diversa.\n"
+            f"  [bold {FG_MUTED}]⬛ GRIGIO[/]   : La lettera non è presente nella parola.\n\n"
+            f"[bold {ACCENT_CYAN}]COMANDI DA TASTIERA:[/]\n"
+            f"• [bold {FG_MAIN}]A-Z[/]       : Digita le lettere\n"
+            f"• [bold {FG_MAIN}]Enter[/]     : Conferma e invia la parola\n"
+            f"• [bold {FG_MAIN}]Backspace[/] : Cancella l'ultima lettera digitata\n"
+            f"• [bold {FG_MAIN}]4, 5, 6, 7, 8[/]: Cambia immediatamente la lunghezza della parola\n"
+            f"• [bold {FG_MAIN}]l[/] o [bold {FG_MAIN}]L[/]     : Apri menu scelta lunghezza\n"
+            f"• [bold {FG_MAIN}]n[/]         : Nuova partita\n"
+            f"• [bold {FG_MAIN}]s[/]         : Mostra statistiche\n"
+            f"• [bold {FG_MAIN}]? / h[/]     : Questo aiuto\n"
+            f"• [bold {FG_MAIN}]q[/]         : Esci dal gioco"
+        )
+
+        yield Vertical(
+            Label("📖 GUIDA & REGOLE", classes="modal-title"),
+            Static(rules, classes="modal-text"),
+            Horizontal(
+                Button("Ho capito [Esc]", id="btn-close", classes="dialog-btn"),
+                classes="modal-buttons",
+            ),
+            classes="modal-dialog",
+        )
+
+    @on(Button.Pressed, "#btn-close")
+    def on_close(self) -> None:
+        self.dismiss()
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key in ("escape", "enter", "q", "h", "question_mark"):
+            self.dismiss()
+
+
+class WordleApp(App[None]):
+    """Dracula Italian Wordle TUI Application."""
+
+    CSS = TCSS
+    TITLE = "Wordle TUI - Dracula Edition"
+
+    def __init__(self, initial_length: int = 5) -> None:
+        super().__init__()
+        self.dict_manager = WordleDictionary.get_instance()
+        self.stats_manager = WordleStats()
+        self.word_length = initial_length
+        self.game: WordleGame = self._create_game(self.word_length)
+        self.status_clear_timer = None
+
+    def _create_game(self, length: int) -> WordleGame:
+        target = self.dict_manager.get_random_target(length)
+        return WordleGame(target)
+
+    def compose(self) -> ComposeResult:
+        # Top Bar
+        yield Horizontal(
+            Static("󰬡 WORDLE ITALIANO", id="top-title"),
+            Static("", id="top-pills"),
+            Static("", id="top-stats"),
+            id="top-bar",
+        )
+
+        # Hero Card
+        logo_art = (
+            "╦ ╦╔═╗╦═╗╔╦╗╦  ╔═╗\n"
+            "║║║║ ║╠╦╝ ║║║  ║╣ \n"
+            "╚╩╝╚═╝╩╚══╩╝╩═╝╚═╝"
+        )
+        yield Horizontal(
+            Static(logo_art, id="hero-logo"),
+            Vertical(
+                Static("", id="hero-meta-len", classes="hero-line"),
+                Static("", id="hero-meta-dict", classes="hero-line"),
+                Static("", id="hero-meta-streak", classes="hero-line"),
+                id="hero-meta",
+            ),
+            id="hero-card",
+        )
+
+        # Workspace with grid and virtual keyboard
+        yield ScrollableContainer(
+            Container(id="board-container"),
+            Container(id="keyboard-container"),
+            id="workspace",
+        )
+
+        # Footer Bar
+        yield Horizontal(
+            Static(
+                "[Enter] Invia  [⌫] Cancella  [4-8] Lunghezza  [n] Nuova  [s] Stats  [?] Aiuto  [q] Esci",
+                id="footer-hints",
+            ),
+            Static("", id="footer-status"),
+            id="footer-bar",
+        )
+
+    def on_mount(self) -> None:
+        self._rebuild_board()
+        self._rebuild_keyboard()
+        self._update_headers()
+
+    def _update_headers(self) -> None:
+        # Update pills
+        avail = self.dict_manager.get_available_lengths()
+        pills = []
+        for l in avail:
+            if l <= 8:
+                if l == self.word_length:
+                    pills.append(f"[bold {ACCENT_PINK}][{l}L][/]")
+                else:
+                    pills.append(f"[{l}L]")
+        self.query_one("#top-pills", Static).update(" ".join(pills))
+
+        # Update stats top
+        tot = self.stats_manager.total_played
+        won = self.stats_manager.total_won
+        pct = self.stats_manager.win_percentage
+        streak = self.stats_manager.current_streak
+        top_text = f"Vinte: [bold {ACCENT_GREEN}]{won}/{tot}[/] ({pct}%) • [bold {ACCENT_ORANGE}]🔥 {streak}[/]"
+        self.query_one("#top-stats", Static).update(top_text)
+
+        # Hero Meta
+        t_cnt, g_cnt = self.dict_manager.get_counts(self.word_length)
+        self.query_one("#hero-meta-len", Static).update(
+            f"Modalità: [bold {ACCENT_CYAN}]{self.word_length} Lettere[/]  •  Tentativo: [bold {ACCENT_YELLOW}]{self.game.attempt_count + 1} / {self.game.max_attempts}[/]"
+        )
+        self.query_one("#hero-meta-dict", Static).update(
+            f"Dizionario Italiano: [bold {FG_MAIN}]{t_cnt:,}[/] segrete • [bold {FG_MAIN}]{g_cnt:,}[/] ammesse"
+        )
+        self.query_one("#hero-meta-streak", Static).update(
+            f"Record Serie: [bold {ACCENT_ORANGE}]{self.stats_manager.max_streak}[/]  •  Tasti: [bold {FG_MAIN}4-8[/] per cambiare lunghezza"
+        )
+
+    def _rebuild_board(self) -> None:
+        board = self.query_one("#board-container", Container)
+        board.remove_children()
+
+        for row_idx in range(self.game.max_attempts):
+            row_container = Horizontal(classes="wordle-row", id=f"row-{row_idx}")
+            for col_idx in range(self.word_length):
+                tile = TileWidget("", id=f"tile-{row_idx}-{col_idx}", classes="tile")
+                row_container.mount(tile)
+            board.mount(row_container)
+
+        self._refresh_board_tiles()
+
+    def _refresh_board_tiles(self) -> None:
+        # Existing submitted guesses
+        for row_idx, (guess, evals) in enumerate(zip(self.game.guesses, self.game.evaluations)):
+            for col_idx, (letter, state) in enumerate(zip(guess, evals)):
+                tile = self.query_one(f"#tile-{row_idx}-{col_idx}", TileWidget)
+                tile.update(letter)
+                tile.remove_class("tile-typing", "tile-correct", "tile-present", "tile-absent")
+                if state == LetterState.CORRECT:
+                    tile.add_class("tile-correct")
+                elif state == LetterState.PRESENT:
+                    tile.add_class("tile-present")
+                elif state == LetterState.ABSENT:
+                    tile.add_class("tile-absent")
+
+        # Current active typing row
+        curr_row = self.game.attempt_count
+        if curr_row < self.game.max_attempts:
+            typed = self.game.current_input
+            for col_idx in range(self.word_length):
+                tile = self.query_one(f"#tile-{curr_row}-{col_idx}", TileWidget)
+                tile.remove_class("tile-typing", "tile-correct", "tile-present", "tile-absent")
+                if col_idx < len(typed):
+                    tile.update(typed[col_idx])
+                    tile.add_class("tile-typing")
+                else:
+                    tile.update("")
+
+        # Remaining empty rows
+        for r in range(curr_row + 1, self.game.max_attempts):
+            for c in range(self.word_length):
+                tile = self.query_one(f"#tile-{r}-{c}", TileWidget)
+                tile.update("")
+                tile.remove_class("tile-typing", "tile-correct", "tile-present", "tile-absent")
+
+    def _rebuild_keyboard(self) -> None:
+        kb = self.query_one("#keyboard-container", Container)
+        kb.remove_children()
+
+        r1 = ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"]
+        r2 = ["A", "S", "D", "F", "G", "H", "J", "K", "L"]
+        r3 = ["ENTER", "Z", "X", "C", "V", "B", "N", "M", "BACKSPACE"]
+
+        row1_c = Horizontal(classes="kb-row")
+        for k in r1:
+            row1_c.mount(KeyWidget(k, k))
+        kb.mount(row1_c)
+
+        row2_c = Horizontal(classes="kb-row")
+        for k in r2:
+            row2_c.mount(KeyWidget(k, k))
+        kb.mount(row2_c)
+
+        row3_c = Horizontal(classes="kb-row")
+        for k in r3:
+            label = "INVIA" if k == "ENTER" else ("⌫" if k == "BACKSPACE" else k)
+            row3_c.mount(KeyWidget(k, label, is_wide=(k in ("ENTER", "BACKSPACE"))))
+        kb.mount(row3_c)
+
+        self._refresh_keyboard_colors()
+
+    def _refresh_keyboard_colors(self) -> None:
+        for char, state in self.game.keyboard_states.items():
+            key_widget = self.query_one(f"#kb-{char}", KeyWidget)
+            key_widget.remove_class("kb-correct", "kb-present", "kb-absent")
+            if state == LetterState.CORRECT:
+                key_widget.add_class("kb-correct")
+            elif state == LetterState.PRESENT:
+                key_widget.add_class("kb-present")
+            elif state == LetterState.ABSENT:
+                key_widget.add_class("kb-absent")
+
+    def flash_status(self, message: str, duration: float = 3.0) -> None:
+        """Display status message in footer and clear after duration."""
+        status = self.query_one("#footer-status", Static)
+        status.update(message)
+
+        if self.status_clear_timer:
+            self.status_clear_timer.stop()
+
+        self.status_clear_timer = self.set_timer(duration, lambda: status.update(""))
+
+    def on_virtual_key(self, key_id: str) -> None:
+        """Handle mouse click on on-screen keyboard."""
+        if key_id == "ENTER":
+            self._handle_enter()
+        elif key_id == "BACKSPACE":
+            self._handle_backspace()
+        else:
+            self._handle_letter(key_id)
+
+    def on_key(self, event: events.Key) -> None:
+        """Handle keyboard input."""
+        key = event.key
+
+        if key in ("escape",):
+            return
+
+        if key in ("q", "Q"):
+            self.exit()
+            return
+
+        if key in ("n", "N"):
+            self.start_new_game()
+            return
+
+        if key in ("s", "S"):
+            self.push_screen(StatsModal(self.stats_manager, self.word_length))
+            return
+
+        if key in ("question_mark", "h", "H"):
+            self.push_screen(HelpModal())
+            return
+
+        if key in ("l", "L"):
+            self.action_choose_length()
+            return
+
+        # Direct number keys 4..8 to change length
+        if key.isdigit():
+            val = int(key)
+            if val in self.dict_manager.get_available_lengths():
+                self.change_word_length(val)
+                return
+
+        if self.game.status != GameStatus.PLAYING:
+            if key == "enter":
+                self.start_new_game()
+            return
+
+        if key == "enter":
+            self._handle_enter()
+        elif key in ("backspace", "delete"):
+            self._handle_backspace()
+        elif len(key) == 1 and key.isalpha():
+            self._handle_letter(key)
+
+    def _handle_letter(self, char: str) -> None:
+        if self.game.add_letter(char):
+            self._refresh_board_tiles()
+
+    def _handle_backspace(self) -> None:
+        if self.game.remove_letter():
+            self._refresh_board_tiles()
+
+    def _handle_enter(self) -> None:
+        current_input = self.game.current_input
+        if len(current_input) < self.word_length:
+            self.flash_status(f"Inserisci {self.word_length} lettere!")
+            return
+
+        if not self.dict_manager.is_valid_guess(current_input, self.word_length):
+            self.flash_status("Parola non presente nel vocabolario italiano!")
+            return
+
+        success, msg = self.game.submit_guess()
+        self._refresh_board_tiles()
+        self._refresh_keyboard_colors()
+        self._update_headers()
+
+        if self.game.status != GameStatus.PLAYING:
+            won = self.game.status == GameStatus.WON
+            self.stats_manager.record_game(
+                self.word_length,
+                won,
+                self.game.attempt_count,
+                self.game.target,
+            )
+            self._update_headers()
+            self.push_screen(GameOverModal(self.game, self.stats_manager))
+        else:
+            self.flash_status(msg)
+
+    def start_new_game(self) -> None:
+        """Start a new game session with current length."""
+        self.game = self._create_game(self.word_length)
+        self._rebuild_board()
+        self._rebuild_keyboard()
+        self._update_headers()
+        self.flash_status("Nuova partita avviata!")
+
+    def change_word_length(self, length: int) -> None:
+        """Change word length and start new game."""
+        if length == self.word_length and self.game.status == GameStatus.PLAYING:
+            return
+        self.word_length = length
+        self.game = self._create_game(self.word_length)
+        self._rebuild_board()
+        self._rebuild_keyboard()
+        self._update_headers()
+        self.flash_status(f"Lunghezza impostata a {length} lettere!")
+
+    def action_choose_length(self) -> None:
+        """Open length selection modal."""
+        def _on_select(length: Optional[int]) -> None:
+            if length and length != self.word_length:
+                self.change_word_length(length)
+
+        avail = [l for l in self.dict_manager.get_available_lengths() if l <= 8]
+        self.push_screen(LengthModal(self.word_length, avail), _on_select)

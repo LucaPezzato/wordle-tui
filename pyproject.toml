@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wordle-tui"
+version = "0.1.0"
+description = "Dracula-themed Italian Wordle TUI with configurable word lengths and Waybar integration"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "LucaPezzato", email = "luca@pezzato.dev" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "textual>=0.80.0",
+    "rich>=13.0.0",
+]
+
+[project.scripts]
+wordle-tui = "wordle_tui.cli:main"
+
+[tool.setuptools.package-data]
+wordle_tui = ["data/*.json.gz"]

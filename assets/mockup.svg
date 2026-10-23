@@ -1,0 +1,178 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 560" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #1e1f29; }
+      .card { fill: #282a36; stroke: #bd93f9; stroke-width: 2; rx: 8; }
+      .card-subtle { fill: #282a36; stroke: #6272a4; stroke-width: 1.5; rx: 6; }
+      .text-title { fill: #ff79c6; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 16px; font-weight: bold; }
+      .text-sub { fill: #8be9fd; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+      .text-meta { fill: #f8f8f2; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+      .text-muted { fill: #6272a4; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+      .text-tile { fill: #1e1f29; font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+      .text-tile-empty { fill: #f8f8f2; font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+      .tile-correct { fill: #50fa7b; rx: 6; }
+      .tile-present { fill: #f1fa8c; rx: 6; }
+      .tile-absent { fill: #44475a; rx: 6; }
+      .tile-typing { fill: #282a36; stroke: #ff79c6; stroke-width: 2; rx: 6; }
+      .tile-empty { fill: #282a36; stroke: #6272a4; stroke-width: 1.5; rx: 6; }
+      .kb-key { fill: #282a36; stroke: #6272a4; stroke-width: 1; rx: 4; }
+      .kb-text { fill: #f8f8f2; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+    </style>
+  </defs>
+
+  <!-- Screen Background -->
+  <rect width="850" height="560" class="bg" rx="12"/>
+
+  <!-- Top Bar -->
+  <text x="24" y="30" class="text-title">󰬡 WORDLE ITALIANO</text>
+  <text x="220" y="30" class="text-muted">[4L] <tspan fill="#ff79c6" font-weight="bold">[5L]</tspan> [6L] [7L] [8L]</text>
+  <text x="826" y="30" text-anchor="end" class="text-sub">Vinte: <tspan fill="#50fa7b" font-weight="bold">12/15 (80%)</tspan> • <tspan fill="#ffb86c" font-weight="bold">🔥 5</tspan></text>
+
+  <!-- Hero Card -->
+  <rect x="24" y="46" width="802" height="74" class="card"/>
+  <text x="44" y="75" fill="#bd93f9" font-family="monospace" font-size="12" font-weight="bold">╦ ╦╔═╗╦═╗╔╦╗╦  ╔═╗</text>
+  <text x="44" y="90" fill="#bd93f9" font-family="monospace" font-size="12" font-weight="bold">║║║║ ║╠╦╝ ║║║  ║╣ </text>
+  <text x="44" y="105" fill="#bd93f9" font-family="monospace" font-size="12" font-weight="bold">╚╩╝╚═╝╩╚══╩╝╩═╝╚═╝</text>
+
+  <text x="240" y="72" class="text-meta">Modalità: <tspan fill="#8be9fd" font-weight="bold">5 Lettere</tspan> • Tentativo: <tspan fill="#f1fa8c" font-weight="bold">3 / 6</tspan></text>
+  <text x="240" y="92" class="text-meta">Vocabolario Italiano: <tspan fill="#50fa7b">2,730</tspan> soluzioni • <tspan fill="#8be9fd">6,900</tspan> parole ammesse</text>
+  <text x="240" y="110" class="text-muted">Record Serie: <tspan fill="#ffb86c">7</tspan> • Tasti: <tspan fill="#ff79c6">4-8</tspan> cambia lunghezza | <tspan fill="#ff79c6">n</tspan> nuova partita</text>
+
+  <!-- Wordle 5-letter Grid (Centered) -->
+  <!-- Row 1: P I Z Z A (ABSENT, CORRECT, ABSENT, ABSENT, PRESENT) -->
+  <g transform="translate(295, 140)">
+    <rect x="0" y="0" width="46" height="42" class="tile-absent"/>
+    <text x="23" y="21" class="text-tile" fill="#6272a4">P</text>
+
+    <rect x="54" y="0" width="46" height="42" class="tile-correct"/>
+    <text x="77" y="21" class="text-tile">I</text>
+
+    <rect x="108" y="0" width="46" height="42" class="tile-absent"/>
+    <text x="131" y="21" class="text-tile" fill="#6272a4">Z</text>
+
+    <rect x="162" y="0" width="46" height="42" class="tile-absent"/>
+    <text x="185" y="21" class="text-tile" fill="#6272a4">Z</text>
+
+    <rect x="216" y="0" width="46" height="42" class="tile-present"/>
+    <text x="239" y="21" class="text-tile">A</text>
+  </g>
+
+  <!-- Row 2: C A S T O (ABSENT, PRESENT, PRESENT, PRESENT, ABSENT) -->
+  <g transform="translate(295, 190)">
+    <rect x="0" y="0" width="46" height="42" class="tile-absent"/>
+    <text x="23" y="21" class="text-tile" fill="#6272a4">C</text>
+
+    <rect x="54" y="0" width="46" height="42" class="tile-present"/>
+    <text x="77" y="21" class="text-tile">A</text>
+
+    <rect x="108" y="0" width="46" height="42" class="tile-present"/>
+    <text x="131" y="21" class="text-tile">S</text>
+
+    <rect x="162" y="0" width="46" height="42" class="tile-present"/>
+    <text x="185" y="21" class="text-tile">T</text>
+
+    <rect x="216" y="0" width="46" height="42" class="tile-absent"/>
+    <text x="239" y="21" class="text-tile" fill="#6272a4">O</text>
+  </g>
+
+  <!-- Row 3: S T A I (currently typing...) -->
+  <g transform="translate(295, 240)">
+    <rect x="0" y="0" width="46" height="42" class="tile-typing"/>
+    <text x="23" y="21" class="text-tile-empty">S</text>
+
+    <rect x="54" y="0" width="46" height="42" class="tile-typing"/>
+    <text x="77" y="21" class="text-tile-empty">T</text>
+
+    <rect x="108" y="0" width="46" height="42" class="tile-typing"/>
+    <text x="131" y="21" class="text-tile-empty">A</text>
+
+    <rect x="162" y="0" width="46" height="42" class="tile-typing"/>
+    <text x="185" y="21" class="text-tile-empty">I</text>
+
+    <rect x="216" y="0" width="46" height="42" class="tile-empty"/>
+    <text x="239" y="21" class="text-tile-empty"></text>
+  </g>
+
+  <!-- Row 4-6: Empty -->
+  <g transform="translate(295, 290)">
+    <rect x="0" y="0" width="46" height="42" class="tile-empty"/>
+    <rect x="54" y="0" width="46" height="42" class="tile-empty"/>
+    <rect x="108" y="0" width="46" height="42" class="tile-empty"/>
+    <rect x="162" y="0" width="46" height="42" class="tile-empty"/>
+    <rect x="216" y="0" width="46" height="42" class="tile-empty"/>
+  </g>
+
+  <!-- Virtual Keyboard Container -->
+  <!-- Row 1 -->
+  <g transform="translate(205, 360)">
+    <rect x="0" y="0" width="38" height="32" class="kb-key"/>
+    <text x="19" y="16" class="kb-text">Q</text>
+    <rect x="44" y="0" width="38" height="32" class="kb-key"/>
+    <text x="63" y="16" class="kb-text">W</text>
+    <rect x="88" y="0" width="38" height="32" class="kb-key"/>
+    <text x="107" y="16" class="kb-text">E</text>
+    <rect x="132" y="0" width="38" height="32" class="kb-key"/>
+    <text x="151" y="16" class="kb-text">R</text>
+    <rect x="176" y="0" width="38" height="32" class="tile-present"/>
+    <text x="195" y="16" class="text-tile" font-size="12">T</text>
+    <rect x="220" y="0" width="38" height="32" class="kb-key"/>
+    <text x="239" y="16" class="kb-text">Y</text>
+    <rect x="264" y="0" width="38" height="32" class="kb-key"/>
+    <text x="283" y="16" class="kb-text">U</text>
+    <rect x="308" y="0" width="38" height="32" class="tile-correct"/>
+    <text x="327" y="16" class="text-tile" font-size="12">I</text>
+    <rect x="352" y="0" width="38" height="32" class="tile-absent"/>
+    <text x="371" y="16" class="kb-text" fill="#6272a4">O</text>
+    <rect x="396" y="0" width="38" height="32" class="tile-absent"/>
+    <text x="415" y="16" class="kb-text" fill="#6272a4">P</text>
+  </g>
+
+  <!-- Row 2 -->
+  <g transform="translate(225, 400)">
+    <rect x="0" y="0" width="38" height="32" class="tile-present"/>
+    <text x="19" y="16" class="text-tile" font-size="12">A</text>
+    <rect x="44" y="0" width="38" height="32" class="tile-present"/>
+    <text x="63" y="16" class="text-tile" font-size="12">S</text>
+    <rect x="88" y="0" width="38" height="32" class="kb-key"/>
+    <text x="107" y="16" class="kb-text">D</text>
+    <rect x="132" y="0" width="38" height="32" class="kb-key"/>
+    <text x="151" y="16" class="kb-text">F</text>
+    <rect x="176" y="0" width="38" height="32" class="kb-key"/>
+    <text x="195" y="16" class="kb-text">G</text>
+    <rect x="220" y="0" width="38" height="32" class="kb-key"/>
+    <text x="239" y="16" class="kb-text">H</text>
+    <rect x="264" y="0" width="38" height="32" class="kb-key"/>
+    <text x="283" y="16" class="kb-text">J</text>
+    <rect x="308" y="0" width="38" height="32" class="kb-key"/>
+    <text x="327" y="16" class="kb-text">K</text>
+    <rect x="352" y="0" width="38" height="32" class="kb-key"/>
+    <text x="371" y="16" class="kb-text">L</text>
+  </g>
+
+  <!-- Row 3 -->
+  <g transform="translate(195, 440)">
+    <rect x="0" y="0" width="60" height="32" class="kb-key"/>
+    <text x="30" y="16" class="kb-text" fill="#50fa7b">INVIA</text>
+    <rect x="66" y="0" width="38" height="32" class="tile-absent"/>
+    <text x="85" y="16" class="kb-text" fill="#6272a4">Z</text>
+    <rect x="110" y="0" width="38" height="32" class="kb-key"/>
+    <text x="129" y="16" class="kb-text">X</text>
+    <rect x="154" y="0" width="38" height="32" class="tile-absent"/>
+    <text x="173" y="16" class="kb-text" fill="#6272a4">C</text>
+    <rect x="198" y="0" width="38" height="32" class="kb-key"/>
+    <text x="217" y="16" class="kb-text">V</text>
+    <rect x="242" y="0" width="38" height="32" class="kb-key"/>
+    <text x="261" y="16" class="kb-text">B</text>
+    <rect x="286" y="0" width="38" height="32" class="kb-key"/>
+    <text x="305" y="16" class="kb-text">N</text>
+    <rect x="330" y="0" width="38" height="32" class="kb-key"/>
+    <text x="349" y="16" class="kb-text">M</text>
+    <rect x="374" y="0" width="60" height="32" class="kb-key"/>
+    <text x="404" y="16" class="kb-text" fill="#ff79c6">⌫</text>
+  </g>
+
+  <!-- Footer Bar -->
+  <line x1="24" y1="520" x2="826" y2="520" stroke="#44475a" stroke-width="1"/>
+  <text x="24" y="542" class="text-muted">[Enter] Invia  [⌫] Cancella  [4-8] Lunghezza  [n] Nuova  [s] Stats  [?] Aiuto  [q] Esci</text>
+  <text x="826" y="542" text-anchor="end" class="text-title" font-size="13">Pronto</text>
+</svg>

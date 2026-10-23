@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Wordle TUI
+Comment=Dracula Italian Wordle with variable word lengths
+Exec=kitty --class wordle-tui wordle-tui
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+Categories=Game;LogicGame;ConsoleOnly;
+Keywords=wordle;game;italian;tui;dracula;
