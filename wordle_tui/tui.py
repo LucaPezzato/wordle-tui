@@ -235,7 +235,7 @@ ModalScreen {{
 }}
 
 .modal-dialog {{
-    width: 60;
+    width: 62;
     height: auto;
     max-height: 85%;
     background: {BG_CARD};
@@ -342,6 +342,31 @@ ModalScreen {{
     width: 100%;
     height: 3;
 }}
+
+.game-over-buttons {{
+    layout: vertical;
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+}}
+
+.game-over-buttons #btn-new {{
+    width: 100%;
+    height: 3;
+    margin-bottom: 1;
+}}
+
+.game-over-sub-buttons {{
+    layout: horizontal;
+    width: 100%;
+    height: 3;
+}}
+
+.game-over-sub-buttons Button {{
+    width: 1fr;
+    height: 3;
+    margin: 0 1;
+}}
 """
 
 
@@ -391,15 +416,18 @@ class GameOverModal(ModalScreen[None]):
             ),
             Label(
                 f"Tentativi utilizzati: [bold]{self.game.attempt_count} / {self.game.max_attempts}[/]  •  "
-                f"Serie attuale: [bold {ACCENT_ORANGE}]🔥 {self.stats.current_streak}[/]",
+                f"Serie: [bold {ACCENT_ORANGE}]🔥 {self.stats.current_streak}[/]",
                 classes="modal-text",
             ),
             Static(self._build_emoji_box(), id="emoji-box"),
-            Horizontal(
-                Button("📋 Copia Griglia Emoji", id="btn-copy", classes="dialog-btn"),
+            Vertical(
                 Button("🔄 Nuova Partita [Enter]", id="btn-new", classes="dialog-btn", variant="primary"),
-                Button("Chiudi [Esc]", id="btn-close", classes="dialog-btn"),
-                classes="modal-buttons",
+                Horizontal(
+                    Button("📋 Copia Risultato [C]", id="btn-copy", classes="dialog-btn"),
+                    Button("Chiudi [Esc]", id="btn-close", classes="dialog-btn"),
+                    classes="game-over-sub-buttons",
+                ),
+                classes="game-over-buttons",
             ),
             classes="modal-dialog",
         )
@@ -435,10 +463,13 @@ class GameOverModal(ModalScreen[None]):
         self.dismiss()
 
     def on_key(self, event: events.Key) -> None:
-        if event.key in ("enter", "n"):
+        key = event.key.lower()
+        if key in ("enter", "n"):
             self.dismiss()
             self.app.start_new_game()
-        elif event.key in ("escape", "q"):
+        elif key in ("c", "y"):
+            self.action_copy()
+        elif key in ("escape", "q"):
             self.dismiss()
 
 
