@@ -113,6 +113,21 @@ class TestDictionary(unittest.TestCase):
             targets = self.dict_manager.targets_by_len.get(length, [])
             self.assertNotIn(word, targets, f"Obscure word {word} should not be a target!")
 
+    def test_no_prepositions_or_verbs_in_targets(self):
+        # Articulated prepositions, pronouns and conjugated/infinitive verbs should never be secret targets
+        invalids = [
+            # Prepositions
+            "DALLO", "DELLA", "NELLA", "SULLO", "DALLA", "DELLE", "NELLE", "SULLE", "DEGLI", "DAGLI",
+            # Verbs (conjugated & infinitives)
+            "FANNO", "HANNO", "VANNO", "SIAMO", "ERANO", "AVEVO", "MANGIO", "CORRE", "FARE", "BERE", "DIRE", "DARE",
+            # Pronouns
+            "QUESTO", "QUELLO", "LORO", "ESSO", "EGLI"
+        ]
+        for word in invalids:
+            length = len(word)
+            targets = self.dict_manager.targets_by_len.get(length, [])
+            self.assertNotIn(word, targets, f"Function word or verb {word} should not be a secret target!")
+
     def test_common_everyday_words_present(self):
         # Target list must contain staple common words
         common_words = {

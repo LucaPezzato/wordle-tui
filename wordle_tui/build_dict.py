@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import csv
 import gzip
+import io
 import json
 import re
 import unicodedata
@@ -37,7 +39,7 @@ NAMES_URL = (
     "https://raw.githubusercontent.com/napolux/paroleitaliane/main/paroleitaliane/9000_nomi_propri.txt"
 )
 
-# Common loanwords ending in consonant widely used in Italian
+# Common loanwords ending in consonant widely used in Italian as nouns
 LOANWORDS_CONS = {
     "BAR", "GAS", "GOL", "PUB", "BUS", "FAN", "TRAM", "CHEF", "CLUB", "FILM", "TEST", "STOP",
     "JAZZ", "QUIZ", "LOOK", "POST", "ROCK", "TEAM", "WEB", "ZOOM", "ALBUM", "ALCOL", "BAZAR",
@@ -48,6 +50,21 @@ LOANWORDS_CONS = {
     "MANAGER", "MONITOR", "PARTNER", "POKER", "POSTER", "RADAR", "RECORD", "RESORT",
     "SHAMPOO", "SNACK", "SOCCER", "SPONSOR", "STAND", "SUPER", "SURF", "TENNIS", "TICKET",
     "TRAILER", "TUNNEL", "VOUCHER", "WEEKEND", "WHISKY", "YOGURT",
+}
+
+# Preposizioni articolate, pronomi, congiunzioni, avverbi che NON devono essere soluzioni segrete
+FUNCTION_WORDS = {
+    "COME", "DOVE", "QUANDO", "PERCHE", "POICHE", "BENCHE", "SEBBE", "QUINDI", "DUNQUE",
+    "ANCHE", "NEANCHE", "NEMMENO", "NEPPURE", "QUASI", "FORSE", "CIRCA", "SOPRA", "SOTTO",
+    "DENTRO", "FUORI", "AVANTI", "DIETRO", "PRESSO", "LUNGO", "SENZA", "VERSO", "CONTRO",
+    "INSIEME", "TUTTAVIA", "INFATTI", "ALMENO", "INVECE", "MENTRE", "OPPURE", "OVVERO",
+    "DALLO", "DELLA", "NELLA", "SULLO", "DALLA", "DELLE", "NELLE", "SULLE", "DEGLI", "DAGLI",
+    "COLLA", "COLLE", "COLLO", "COGLI", "SUGLI", "NEGLI", "DELLO", "NELLO",
+    "QUESTO", "QUELLO", "QUESTA", "QUELLA", "QUESTI", "QUELLI", "QUESTE", "QUELLE",
+    "QUANTO", "QUANTA", "QUANTI", "QUANTE", "QUALE", "QUALI", "QUALCHE",
+    "LORO", "ESSO", "ESSA", "ESSI", "ESSE", "EGLI", "ELLA", "COLUI", "COLEI", "COLORO",
+    "COSTUI", "COSTEI", "QUALCUNO", "QUALCOSA", "OGNUNO", "CIASCUNO", "CIASCUNA",
+    "NIENTE", "NULLA", "NESSUNO", "NESSUNA", "ALTRO", "ALTRA", "ALTRI", "ALTRE",
 }
 
 # Whitelists of native nouns ending in consonant+vowel clusters that resemble clitic infinitives
@@ -107,8 +124,17 @@ OBSCURE_TARGETS = {
     "CAVAI", "CIBAI", "COLAI", "COVAI", "ERRAI", "NEVAI", "PELAI", "POSAI", "REMAI", "SUDAI",
     "URLAI", "VELAI", "VINAI", "VOLAI", "ADUSO", "AFIDI", "AGAPE", "ANCIA", "AMALA", "DILLE",
     "DILLA", "DILLI", "DILLO", "FALLE", "FALLA", "FALLI", "FALLO", "DAMMI", "DACCI", "DAGLI",
-    "FAMMI", "FANNE", "DIMMI", "DINNE",
+    "FAMMI", "FANNE", "DIMMI", "DINNE", "FARE", "DARE", "DIRE", "BERE", "UDIRE", "USCIRE",
+    "DALLO", "DELLA", "NELLA", "SULLO", "DALLA", "DELLE", "NELLE", "SULLE", "DEGLI", "DAGLI",
+    "COLLA", "COLLE", "COLLO", "COGLI", "SUGLI", "NEGLI",
 }
+
+# Desinenze verbali coniugate personali da escludere tassativamente dai bersagli
+VERBAL_ENDINGS = (
+    "VAMO", "VATE", "VANO", "REMO", "RETE", "RANNO", "RESTE", "REBBE", "REMMO", "REBBERO",
+    "ASSERO", "ESSERO", "ISSERO", "ASSIAMO", "ESSIAMO", "ISSIAMO", "ASTE", "ESTE", "ISTE",
+    "AMMO", "EMMO", "IMMO", "ARONO", "ERON", "IRONO", "ANDO", "ENDO",
+)
 
 
 def normalize_word(word: str) -> str:
@@ -174,37 +200,30 @@ def build_clean_dictionary(
     )
 
     if callback:
-        callback("Download indice di frequenza d'uso...")
-    req_freq = urllib.request.urlopen(FREQ_URL, timeout=30)
-    freq_dict: Dict[str, int] = {}
-    for line in req_freq.read().decode("utf-8").splitlines():
-        parts = line.split()
-        if len(parts) >= 2:
-            w = normalize_word(parts[0])
-            freq_dict[w] = max(freq_dict.get(w, 0), int(parts[1]))
-
-    if callback:
         callback("Download Nuovo Vocabolario di Base (De Mauro)...")
     req_nvdb = urllib.request.urlopen(NVDB_URL, timeout=30)
-    nvdb_lemmas: Set[str] = set()
-    nvdb_categories: Dict[str, str] = {}
-    for l in req_nvdb.read().decode("utf-8").splitlines()[1:]:
-        parts = l.split(",")
-        if parts:
-            w = normalize_word(parts[0])
-            nvdb_lemmas.add(w)
-            if len(parts) >= 2:
-                nvdb_categories[w] = parts[1]
+    content_nvdb = req_nvdb.read().decode("utf-8")
+    reader_nvdb = csv.DictReader(io.StringIO(content_nvdb))
+
+    noun_lemmas: Set[Tuple[str, str]] = set()
+    adj_lemmas: Set[str] = set()
+
+    for r in reader_nvdb:
+        lemma = normalize_word(r.get("parola", ""))
+        pos = r.get("pos", "")
+        gender = r.get("gender", "")
+
+        # Exclude pure verbs and infinitive verbs (es. fare, andare, parlare, bere)
+        if pos == "verbo" or (pos.startswith("verbo") and lemma.endswith(("ARE", "ERE", "IRE"))):
+            continue
+
+        if "sostantivo" in pos:
+            noun_lemmas.add((lemma, gender))
+        elif "aggettivo" in pos:
+            adj_lemmas.add(lemma)
 
     if callback:
         callback("Download liste Wordle curate (5 lettere)...")
-    req_cur = urllib.request.urlopen(CURATED5_URL, timeout=30)
-    cur5 = set(
-        normalize_word(l)
-        for l in req_cur.read().decode("utf-8").splitlines()
-        if l.strip()
-    )
-
     req_wl5 = urllib.request.urlopen(WORDLIST5_URL, timeout=30)
     wl5 = set(
         normalize_word(l)
@@ -235,66 +254,72 @@ def build_clean_dictionary(
         for l in req_nomi.read().decode("utf-8").splitlines()
         if l.strip()
     )
-    pure_names = nomi - nvdb_lemmas
+    all_noun_lemmas_set = {lem for lem, _ in noun_lemmas}
+    pure_names = nomi - all_noun_lemmas_set - adj_lemmas
 
     if callback:
-        callback("Curatela e selezione parole per lunghezze 4..8...")
+        callback("Generazione sostantivi e aggettivi (singolari/plurali)...")
 
-    def is_clean_target(word: str, length: int, min_freq: int = 35) -> bool:
-        if len(word) != length:
-            return False
-        if word in blacklist or word in pure_names or word in OBSCURE_TARGETS:
-            return False
-        if is_roman(word):
-            return False
-        if word[-1] not in "AEIOU" and word not in LOANWORDS_CONS:
-            return False
-        if has_clitic(word):
-            return False
-        if word not in lex280 and word not in cur5:
-            return False
-        freq = freq_dict.get(word, 0)
-        if freq < min_freq and word not in nvdb_lemmas:
-            return False
-        # Rare 1st-person passato remoto in -AI
-        if word.endswith("AI") and freq < 100 and word not in nvdb_lemmas:
-            return False
-        return True
+    # Regular inflection of nouns and adjectives
+    valid_nouns_adjs: Set[str] = set()
+
+    for lemma, gender in noun_lemmas:
+        if lemma in lex280:
+            valid_nouns_adjs.add(lemma)
+        if "invariabile" in gender:
+            continue
+        if "femminile" in gender:
+            if lemma.endswith("A") and lemma[:-1] + "E" in lex280:
+                valid_nouns_adjs.add(lemma[:-1] + "E")
+            elif lemma.endswith("E") and lemma[:-1] + "I" in lex280:
+                valid_nouns_adjs.add(lemma[:-1] + "I")
+        else:  # maschile
+            if lemma.endswith("O") and lemma[:-1] + "I" in lex280:
+                valid_nouns_adjs.add(lemma[:-1] + "I")
+            elif lemma.endswith("A") and lemma[:-1] + "I" in lex280:
+                valid_nouns_adjs.add(lemma[:-1] + "I")
+            elif lemma.endswith("E") and lemma[:-1] + "I" in lex280:
+                valid_nouns_adjs.add(lemma[:-1] + "I")
+            elif lemma.endswith("CO") and lemma[:-2] + "CHI" in lex280:
+                valid_nouns_adjs.add(lemma[:-2] + "CHI")
+            elif lemma.endswith("GO") and lemma[:-2] + "GHI" in lex280:
+                valid_nouns_adjs.add(lemma[:-2] + "GHI")
+
+    for lemma in adj_lemmas:
+        if lemma in lex280:
+            valid_nouns_adjs.add(lemma)
+        if lemma.endswith("O"):
+            for end in ["A", "I", "E"]:
+                c = lemma[:-1] + end
+                if c in lex280:
+                    valid_nouns_adjs.add(c)
+        elif lemma.endswith("E"):
+            c = lemma[:-1] + "I"
+            if c in lex280:
+                valid_nouns_adjs.add(c)
+
+    if callback:
+        callback("Filtro e suddivisione per lunghezze 4..8...")
+
+    target_pool = (
+        (valid_nouns_adjs | LOANWORDS_CONS)
+        - FUNCTION_WORDS
+        - OBSCURE_TARGETS
+        - blacklist
+        - pure_names
+    )
 
     data = {"targets": {}, "guesses": {}}
 
     for length in (4, 5, 6, 7, 8):
-        all_cands = {w for w in lex280 if len(w) == length}
-        if length == 5:
-            all_cands |= cur5
-
-        if length == 4:
-            t4 = set()
-            for lemma, cat in nvdb_categories.items():
-                if len(lemma) == 4 and cat in ("fondamentale", "alto_uso"):
-                    if lemma in lex280:
-                        t4.add(lemma)
-                    if lemma.endswith("O"):
-                        for end in ["A", "I", "E"]:
-                            c = lemma[:-1] + end
-                            if c in lex280:
-                                t4.add(c)
-                    elif lemma.endswith("A"):
-                        c = lemma[:-1] + "E"
-                        if c in lex280:
-                            t4.add(c)
-                    elif lemma.endswith("E"):
-                        c = lemma[:-1] + "I"
-                        if c in lex280:
-                            t4.add(c)
-            targets = sorted(
-                w for w in t4
-                if w not in OBSCURE_TARGETS and w not in blacklist and not is_roman(w) and not has_clitic(w)
-            )
-        else:
-            targets = sorted(
-                w for w in all_cands if is_clean_target(w, length, min_freq=35)
-            )
+        targets = sorted(
+            w for w in target_pool
+            if len(w) == length
+            and not is_roman(w)
+            and not has_clitic(w)
+            and not any(w.endswith(e) for e in VERBAL_ENDINGS)
+            and (w[-1] in "AEIOU" or w in LOANWORDS_CONS)
+        )
 
         pool = {w for w in lex280 if len(w) == length}
         if length == 5:
