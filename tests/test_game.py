@@ -105,6 +105,14 @@ class TestDictionary(unittest.TestCase):
             targets = self.dict_manager.targets_by_len.get(length, [])
             self.assertNotIn(c, targets, f"Clitic compound {c} should not be a target word!")
 
+    def test_no_obscure_or_bizarre_targets(self):
+        # Obscure or technical words should not be chosen as mystery target words
+        obscure = ["TARE", "GORE", "COLI", "MERE", "BIDE", "DODO", "ANDE", "SAVI", "IDRA", "SVISA", "OPTAI", "OZIAI"]
+        for word in obscure:
+            length = len(word)
+            targets = self.dict_manager.targets_by_len.get(length, [])
+            self.assertNotIn(word, targets, f"Obscure word {word} should not be a target!")
+
     def test_common_everyday_words_present(self):
         # Target list must contain staple common words
         common_words = {

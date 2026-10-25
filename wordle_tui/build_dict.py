@@ -90,6 +90,26 @@ CLITIC_EXACT = {
     "AMALA", "VEDIL", "SVISA",
 }
 
+# Obscure, technical, ambiguous, or bizarre words to exclude from targets
+OBSCURE_TARGETS = {
+    # 4 letters
+    "TARE", "GORE", "COLI", "MERE", "ANTE", "ANDE", "DODO", "SAVI", "IDRA", "BIDE", "BEVA",
+    "POVI", "PONE", "TRAI", "AMBO", "TIMO", "COCA", "BOIA", "DITE", "ALDO", "ALMA", "ALPI",
+    "ALFA", "ANDO", "ARGO", "ARTU", "ASIA", "ASMA", "AGII", "CALA", "CALE", "CALI", "CAPA",
+    "CAVE", "CIBA", "EFFE", "ELLE", "EMME", "ENNE", "ERRE", "ESSE", "ETTO", "FUSA", "FUSE",
+    "LAMA", "LAME", "MENA", "MENI", "MERA", "MERI", "MERO", "MOTA", "MOTE", "MURA", "MUSA",
+    "MUSE", "NANA", "NANE", "NATA", "NONA", "NONI", "NOVI", "ODIA", "ODII", "OLIA", "ORCA",
+    "ORCI", "PELA", "PENE", "PENI", "PESA", "PESE", "POCA", "PUPA", "PUPE", "RADA", "RADE",
+    "RADI", "RADO", "RESA", "RESE", "RISA", "RISE", "RISI", "SODA", "SODE", "SODI", "SODO",
+    "TIPA", "TIPE", "TOPA", "TUBA", "TUBE", "VAGA", "VANA", "VANE", "VANI",
+    # 5 letters
+    "SVISA", "OPTAI", "OZIAI", "PENAI", "TOSAI", "OLIAI", "DOMAI", "CELAI", "BADAI", "BARAI",
+    "CAVAI", "CIBAI", "COLAI", "COVAI", "ERRAI", "NEVAI", "PELAI", "POSAI", "REMAI", "SUDAI",
+    "URLAI", "VELAI", "VINAI", "VOLAI", "ADUSO", "AFIDI", "AGAPE", "ANCIA", "AMALA", "DILLE",
+    "DILLA", "DILLI", "DILLO", "FALLE", "FALLA", "FALLI", "FALLO", "DAMMI", "DACCI", "DAGLI",
+    "FAMMI", "FANNE", "DIMMI", "DINNE",
+}
+
 
 def normalize_word(word: str) -> str:
     """Normalize word to uppercase ASCII letters (A-Z), removing accents."""
@@ -167,10 +187,14 @@ def build_clean_dictionary(
         callback("Download Nuovo Vocabolario di Base (De Mauro)...")
     req_nvdb = urllib.request.urlopen(NVDB_URL, timeout=30)
     nvdb_lemmas: Set[str] = set()
+    nvdb_categories: Dict[str, str] = {}
     for l in req_nvdb.read().decode("utf-8").splitlines()[1:]:
         parts = l.split(",")
         if parts:
-            nvdb_lemmas.add(normalize_word(parts[0]))
+            w = normalize_word(parts[0])
+            nvdb_lemmas.add(w)
+            if len(parts) >= 2:
+                nvdb_categories[w] = parts[1]
 
     if callback:
         callback("Download liste Wordle curate (5 lettere)...")
@@ -219,7 +243,7 @@ def build_clean_dictionary(
     def is_clean_target(word: str, length: int, min_freq: int = 35) -> bool:
         if len(word) != length:
             return False
-        if word in blacklist or word in pure_names:
+        if word in blacklist or word in pure_names or word in OBSCURE_TARGETS:
             return False
         if is_roman(word):
             return False
@@ -244,9 +268,33 @@ def build_clean_dictionary(
         if length == 5:
             all_cands |= cur5
 
-        targets = sorted(
-            w for w in all_cands if is_clean_target(w, length, min_freq=35)
-        )
+        if length == 4:
+            t4 = set()
+            for lemma, cat in nvdb_categories.items():
+                if len(lemma) == 4 and cat in ("fondamentale", "alto_uso"):
+                    if lemma in lex280:
+                        t4.add(lemma)
+                    if lemma.endswith("O"):
+                        for end in ["A", "I", "E"]:
+                            c = lemma[:-1] + end
+                            if c in lex280:
+                                t4.add(c)
+                    elif lemma.endswith("A"):
+                        c = lemma[:-1] + "E"
+                        if c in lex280:
+                            t4.add(c)
+                    elif lemma.endswith("E"):
+                        c = lemma[:-1] + "I"
+                        if c in lex280:
+                            t4.add(c)
+            targets = sorted(
+                w for w in t4
+                if w not in OBSCURE_TARGETS and w not in blacklist and not is_roman(w) and not has_clitic(w)
+            )
+        else:
+            targets = sorted(
+                w for w in all_cands if is_clean_target(w, length, min_freq=35)
+            )
 
         pool = {w for w in lex280 if len(w) == length}
         if length == 5:
