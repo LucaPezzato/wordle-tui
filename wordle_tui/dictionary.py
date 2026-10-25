@@ -15,12 +15,7 @@ CACHE_DIR = Path.home() / ".local" / "share" / "wordle-tui"
 BUNDLED_DICT_PATH = Path(__file__).parent / "data" / "dictionary.json.gz"
 CACHED_DICT_PATH = CACHE_DIR / "dictionary.json.gz"
 
-DICT_60K_URL = (
-    "https://raw.githubusercontent.com/napolux/paroleitaliane/main/paroleitaliane/60000_parole_italiane.txt"
-)
-DICT_280K_URL = (
-    "https://raw.githubusercontent.com/napolux/paroleitaliane/main/paroleitaliane/280000_parole_italiane.txt"
-)
+
 
 
 def normalize_word(word: str) -> str:
@@ -105,46 +100,13 @@ class WordleDictionary:
     @classmethod
     def update_from_upstream(cls, callback=None) -> Tuple[int, int]:
         """Download latest Italian wordlists and rebuild cached dictionary."""
-        if callback:
-            callback("Download lista comune (60k)...")
-        req60 = urllib.request.urlopen(DICT_60K_URL, timeout=30)
-        data60 = req60.read().decode("utf-8")
-
-        if callback:
-            callback("Download lista completa (280k)...")
-        req280 = urllib.request.urlopen(DICT_280K_URL, timeout=30)
-        data280 = req280.read().decode("utf-8")
-
-        if callback:
-            callback("Normalizzazione e suddivisione per lunghezza...")
-
-        targets: Dict[int, Set[str]] = {}
-        for line in data60.splitlines():
-            w = normalize_word(line)
-            if w.isalpha() and w.isascii() and 4 <= len(w) <= 10:
-                targets.setdefault(len(w), set()).add(w)
-
-        guesses: Dict[int, Set[str]] = {}
-        for line in data280.splitlines():
-            w = normalize_word(line)
-            if w.isalpha() and w.isascii() and 4 <= len(w) <= 10:
-                guesses.setdefault(len(w), set()).add(w)
-
-        for l, t_set in targets.items():
-            guesses.setdefault(l, set()).update(t_set)
-
-        data = {
-            "targets": {str(k): sorted(v) for k, v in targets.items()},
-            "guesses": {str(k): sorted(v) for k, v in guesses.items()},
-        }
+        from wordle_tui.build_dict import build_clean_dictionary
 
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        with gzip.open(CACHED_DICT_PATH, "wt", encoding="utf-8") as f:
-            json.dump(data, f, separators=(",", ":"))
+        tot_targets, tot_guesses = build_clean_dictionary(
+            CACHED_DICT_PATH, callback=callback
+        )
 
         # Reload singleton
         cls._instance = cls()
-
-        tot_targets = sum(len(v) for v in targets.values())
-        tot_guesses = sum(len(v) for v in guesses.values())
         return tot_targets, tot_guesses

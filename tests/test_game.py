@@ -74,6 +74,51 @@ class TestDictionary(unittest.TestCase):
         # Wrong length
         self.assertFalse(self.dict_manager.is_valid_guess("CANE", 5))
 
+    def test_no_broken_stems(self):
+        # Verbal and nominal broken stems must NOT exist in targets or guesses
+        broken_stems = [
+            "SERR", "NAVIG", "SGOBB", "OLEZZ", "TRARR", "NOVIT", "NUDIT",
+            "REALT", "PARL", "PENS", "PORT", "NUOT", "OCCUP", "ODIER"
+        ]
+        for stem in broken_stems:
+            length = len(stem)
+            targets = self.dict_manager.targets_by_len.get(length, [])
+            guesses = self.dict_manager.guesses_by_len.get(length, set())
+            self.assertNotIn(stem, targets, f"{stem} should not be a target word!")
+            self.assertNotIn(stem, guesses, f"{stem} should not be a valid guess!")
+
+    def test_no_roman_numerals(self):
+        # Roman numerals must not be targets or guesses
+        romans = ["CCCII", "CDVII", "LXIII", "XXVII", "MCXII", "CCCLI"]
+        for r in romans:
+            length = len(r)
+            targets = self.dict_manager.targets_by_len.get(length, [])
+            guesses = self.dict_manager.guesses_by_len.get(length, set())
+            self.assertNotIn(r, targets, f"Roman numeral {r} should not be a target!")
+            self.assertNotIn(r, guesses, f"Roman numeral {r} should not be a guess!")
+
+    def test_no_clitic_compounds_in_targets(self):
+        # Clitic imperatives and contractions should not be target secret words
+        clitics = ["DAMMI", "DARCI", "DARLA", "DIRMI", "FAMMI", "FARLO", "DACCI", "FAGLI", "AMALA"]
+        for c in clitics:
+            length = len(c)
+            targets = self.dict_manager.targets_by_len.get(length, [])
+            self.assertNotIn(c, targets, f"Clitic compound {c} should not be a target word!")
+
+    def test_common_everyday_words_present(self):
+        # Target list must contain staple common words
+        common_words = {
+            4: ["CASA", "MARE", "SOLE", "PANE", "VINO", "LUNA", "LUPO", "ROSA"],
+            5: ["PIZZA", "TEMPO", "MONDO", "FESTA", "NOTTE", "TRENO", "AMORE", "GATTO"],
+            6: ["STRADA", "TAVOLO", "LAVORO", "FOGLIA", "GIORNO"],
+            7: ["BAMBINO", "ALBERGO", "MERCATO", "DOMANDA", "RAGAZZO"],
+            8: ["STUDENTE", "GIORNALE", "STAZIONE", "FAMIGLIA", "FINESTRA"],
+        }
+        for length, words in common_words.items():
+            targets = set(self.dict_manager.targets_by_len.get(length, []))
+            for w in words:
+                self.assertIn(w, targets, f"Common word {w} should be in targets[{length}]!")
+
 
 class TestWordleGameSession(unittest.TestCase):
 
